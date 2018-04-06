@@ -1,28 +1,20 @@
 /*
 	oscope~ -- new and improved oscilloscope
  
- TODO:
- 
- -Fix first sample's slope
- -Adjust bordersize
- -Get exact number of pixels in monitor for buffer size
- -Fixing latency of waveform (periodicity analysis, sampling at constant rate)
- -Clean up code, finalize attributes, maybe give it a grid
- -Start spectroscope
- 
-
+    Part of a new group of smart audio visualization objects for Max which includes an oscilloscope,
+    a spectroscope, a 3D spectroscope, smart meters, and maybe more
 */
 
 #include "ext.h"
-#include "ext_obex.h"						// required for new style Max object
+#include "ext_obex.h"
 #include "jpatcher_api.h"
 #include "jgraphics.h"
 #include "z_dsp.h"  
 
 typedef struct _oscope
 {
-	t_pxjbox u_box;						// header for UI objects
-	void *u_out;						// outlet pointer
+	t_pxjbox u_box;
+	void *u_out;
 	t_jrgba u_outline;
 	t_jrgba u_background;
     t_jrgba u_samples;
@@ -75,7 +67,6 @@ void ext_main(void *r)
 	CLASS_ATTR_DEFAULTNAME_SAVE_PAINT(c, "bgcolor", 0, "1. 1. 1. 1.");
 	CLASS_ATTR_STYLE_LABEL(c,"bgcolor",0,"rgba","Background Color");
     
-    //TODO: Sample color not showing up?
     CLASS_ATTR_RGBA(c, "samplecolor", 0, t_oscope, u_samples);
     CLASS_ATTR_BASIC(c, "samplecolor", 0);
     CLASS_ATTR_DEFAULTNAME_SAVE_PAINT(c, "samplecolor", 0, "0. 255. 0. 1.");
@@ -155,17 +146,17 @@ void oscope_paint(t_oscope *x, t_object *patcherview)
                                 x->u_linewidth);
         }
     } else {
-        //TODO: Fix first sample's slope
         if(x->u_gridwidth != rect.width - x->u_boardersize){
             x->u_gridwidth = rect.width - x->u_boardersize;
         }
         if(x->u_gridheight != rect.height){
             x->u_gridheight = rect.height / 2;
         }
-        //jgraphics_move_to(g, x->u_boardersize / 2, x->u_gridheight);
+        
         x->k_paint = x->k_dsp;
         x->u_buffer[x->k_paint] = ((x->u_buffer[x->k_paint] + 1) / 2) * rect.height;
         
+        //attempt at zero-cross latching
         while(!(x->u_buffer[x->k_paint] < 0 && x->u_buffer[x->k_paint + 1] > 0)){
             if(x->k_paint == 0){
                 x->k_paint = x->u_bufferSize - 1;
@@ -222,19 +213,10 @@ void *oscope_new(t_symbol *s, long argc, t_atom *argv)
 			   | JBOX_NODRAWBOX
 			   | JBOX_DRAWINLAST
 			   | JBOX_TRANSPARENT
-			   //		| JBOX_NOGROW
-			   //       | JBOX_GROWY
                | JBOX_GROWBOTH
-			   //		| JBOX_HILITE
-			   //		| JBOX_BACKGROUND
 			   | JBOX_DRAWBACKGROUND
-			   //		| JBOX_NOFLOATINSPECTOR
-			   //		| JBOX_TEXTFIELD
-			   //		| JBOX_MOUSEDRAGDELTA
-			   //		| JBOX_TEXTFIELD
 			   ;
 
-    //TODO: exact buffer size of # of pixels in monitor?
     x->u_bufferSize = 10000;
     x->k_dsp = 0;
     x->k_paint = 0;
@@ -270,7 +252,6 @@ void oscope_perform64(t_oscope *x, t_object *dsp64, double **ins, long numins, d
             (x->k_dsp)++;
         }
     }
-    
     jbox_redraw((t_jbox *)x);
 
 }
@@ -279,15 +260,6 @@ void oscope_perform64(t_oscope *x, t_object *dsp64, double **ins, long numins, d
 void oscope_dsp64(t_oscope *x, t_object *dsp64, short *count, double samplerate, long maxvectorsize, long flags)
 {
     post("my sample rate is: %f", samplerate);
-    
-    // instead of calling dsp_add(), we send the "dsp_add64" message to the object representing the dsp chain
-    // the arguments passed are:
-    // 1: the dsp64 object passed-in by the calling function
-    // 2: the symbol of the "dsp_add64" message we are sending
-    // 3: a pointer to your object
-    // 4: a pointer to your 64-bit perform method
-    // 5: flags to alter how the signal chain handles your object -- just pass 0
-    // 6: a generic pointer that you can use to pass any additional data to your perform method
     
     object_method(dsp64, gensym("dsp_add64"), x, oscope_perform64, 0, NULL);
 
