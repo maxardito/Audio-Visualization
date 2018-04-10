@@ -29,8 +29,6 @@ typedef struct _oscope
     int k_dsp;
     int k_paint;
     
-    bool init;
-    
 } t_oscope;
 
 
@@ -65,6 +63,7 @@ void ext_main(void *r)
 	CLASS_STICKY_ATTR(c, "category", 0, "Color");
     
 	CLASS_ATTR_RGBA(c, "bgcolor", 0, t_oscope, u_background);
+    CLASS_ATTR_BASIC(c, "bgcolor", 0);
 	CLASS_ATTR_DEFAULTNAME_SAVE_PAINT(c, "bgcolor", 0, "1. 1. 1. 1.");
 	CLASS_ATTR_STYLE_LABEL(c,"bgcolor",0,"rgba","Background Color");
     
@@ -74,6 +73,7 @@ void ext_main(void *r)
     CLASS_ATTR_STYLE_LABEL(c,"samplecolor",0,"rgba","Sample Color");
 
 	CLASS_ATTR_RGBA(c, "bordercolor", 0, t_oscope, u_outline);
+    CLASS_ATTR_BASIC(c, "bordercolor", 0);
 	CLASS_ATTR_DEFAULTNAME_SAVE_PAINT(c, "bordercolor", 0, "0. 0. 0. 1.");
 	CLASS_ATTR_STYLE_LABEL(c,"bordercolor",0,"rgba","Border Color");
 
@@ -82,10 +82,12 @@ void ext_main(void *r)
     CLASS_STICKY_ATTR(c, "category", 0, "Dimensions");
     
     CLASS_ATTR_DOUBLE(c, "bordersize", 0, t_oscope, u_bordersize);
+    CLASS_ATTR_BASIC(c, "bordersize", 0);
     CLASS_ATTR_DEFAULTNAME(c, "bordersize", 0, "1.");
     CLASS_ATTR_STYLE_LABEL(c, "bordersize", 0, "double", "Border Size");
     
     CLASS_ATTR_DOUBLE(c, "linewidth", 0, t_oscope, u_linewidth);
+    CLASS_ATTR_BASIC(c, "linewidth", 0);
     CLASS_ATTR_DEFAULTNAME(c, "linewidth", 0, "3.");
     CLASS_ATTR_STYLE_LABEL(c, "linewidth", 0, "double", "Line Width");
     
@@ -136,11 +138,9 @@ void oscope_paint(t_oscope *x, t_object *patcherview)
     jgraphics_set_source_jrgba(h, &x->u_samples);
     
     //draw initial waveform (x = 0)
-    if(x->init == 0){
-        x->init = 1;
+    if(sys_getdspstate() == 0 || *x->u_buffer == 0){
         x->u_gridwidth = rect.width - x->u_bordersize;
         x->u_gridheight = rect.height / 2;
-        x->u_buffer = malloc(sizeof(double)*x->u_bufferSize);
         for(int i = 0; i < x->u_gridwidth; i++){
             if(i == 0){
                 jgraphics_move_to(g, x->u_bordersize / 2, x->u_gridheight);
@@ -154,24 +154,24 @@ void oscope_paint(t_oscope *x, t_object *patcherview)
         
         x->u_gridwidth = rect.width - x->u_bordersize;
         x->u_gridheight = rect.height / 2;
-        
         x->k_paint = x->k_dsp;
-        x->u_buffer[x->k_paint] = ((x->u_buffer[x->k_paint] + 1) / 2) * rect.height;
         
         //attempt at zero-cross latching
-        /*while(!(x->u_buffer[x->k_paint] < 0 && x->u_buffer[x->k_paint + 1] > 0)){
+        while(!(x->u_buffer[x->k_paint] < 0 && x->u_buffer[x->k_paint + 1] > 0)){
             if(x->k_paint == 0){
                 x->k_paint = x->u_bufferSize - 1;
             }
             x->k_paint--;
-        }*/
+        }
         
         //draw waveform
         for(int i = 0; i < x->u_gridwidth; i++){
             if(x->k_paint == 0){
                 x->k_paint = x->u_bufferSize - 1;
             }
-            x->u_buffer[x->k_paint] = ((x->u_buffer[x->k_paint] + 1) / 2) * rect.height;
+            //scale samples to current gridwidth
+            x->u_buffer[x->k_paint] = ((x->u_buffer[x->k_paint] + 1) / 2) * (rect.height - (x->u_bordersize * 2)) + x->u_bordersize;
+
             if(i == 0){
                 jgraphics_move_to(h, x->u_bordersize / 2, x->u_buffer[x->k_paint]);
                 x->k_paint--;
@@ -223,6 +223,7 @@ void *oscope_new(t_symbol *s, long argc, t_atom *argv)
     x->u_bufferSize = 10000;
     x->k_dsp = 0;
     x->k_paint = 0;
+    x->u_buffer = malloc(sizeof(double)*x->u_bufferSize);
     
 	jbox_new((t_jbox *)x, boxflags, argc, argv);
     x->u_box.z_box.b_firstin = (void *)x;
@@ -235,10 +236,6 @@ void *oscope_new(t_symbol *s, long argc, t_atom *argv)
 
 void oscope_perform64(t_oscope *x, t_object *dsp64, double **ins, long numins, double **outs, long numouts, long sampleframes, long flags, void *userparam)
 {
-    
-    if(x->init ==0){
-        x->init = 1;
-    }
     
     double    *in = ins[0];     // first inlet
     double    *out = outs[0];   // first outlet
