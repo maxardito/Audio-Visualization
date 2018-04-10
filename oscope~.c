@@ -19,7 +19,7 @@ typedef struct _oscope
 	t_jrgba u_background;
     t_jrgba u_samples;
     
-    double u_boardersize;
+    double u_bordersize;
     double u_linewidth;
     int u_gridwidth;
     double u_gridheight;
@@ -30,6 +30,7 @@ typedef struct _oscope
     int k_paint;
     
     bool init;
+    
 } t_oscope;
 
 
@@ -80,9 +81,9 @@ void ext_main(void *r)
     
     CLASS_STICKY_ATTR(c, "category", 0, "Dimensions");
     
-    CLASS_ATTR_DOUBLE(c, "boardersize", 0, t_oscope, u_boardersize);
-    CLASS_ATTR_DEFAULTNAME(c, "boardersize", 0, "1.");
-    CLASS_ATTR_STYLE_LABEL(c, "boardersize", 0, "double", "Boarder Size");
+    CLASS_ATTR_DOUBLE(c, "bordersize", 0, t_oscope, u_bordersize);
+    CLASS_ATTR_DEFAULTNAME(c, "bordersize", 0, "1.");
+    CLASS_ATTR_STYLE_LABEL(c, "bordersize", 0, "double", "Border Size");
     
     CLASS_ATTR_DOUBLE(c, "linewidth", 0, t_oscope, u_linewidth);
     CLASS_ATTR_DEFAULTNAME(c, "linewidth", 0, "3.");
@@ -106,63 +107,64 @@ void oscope_paint(t_oscope *x, t_object *patcherview)
 {
 	t_rect rect;
 	t_jgraphics *g = (t_jgraphics *) patcherview_get_jgraphics(patcherview);		// obtain graphics context
+    t_jgraphics *h = (t_jgraphics *) patcherview_get_jgraphics(patcherview);
 	jbox_get_rect_for_view((t_object *)x, patcherview, &rect);
 
 
 	// paint border
 	jgraphics_set_source_jrgba(g, &x->u_outline);
-	jgraphics_set_line_width(g, x->u_boardersize);
-	jgraphics_rectangle(g, 0. + x->u_boardersize / 2,
-                        0. + x->u_boardersize / 2,
-                        rect.width - x->u_boardersize,
-                        rect.height - x->u_boardersize);
+	jgraphics_set_line_width(g, x->u_bordersize);
+	jgraphics_rectangle(g, x->u_bordersize / 2,
+                        x->u_bordersize / 2,
+                        rect.width - x->u_bordersize,
+                        rect.height - x->u_bordersize);
     
 	jgraphics_stroke(g);
     
     //paint background
     jgraphics_set_source_jrgba(g, &x->u_background);
-    jgraphics_rectangle(g, 0. + x->u_boardersize / 2,
-                        0. + x->u_boardersize / 2,
-                        rect.width - x->u_boardersize,
-                        rect.height - x->u_boardersize);
+    jgraphics_rectangle(g, x->u_bordersize / 2,
+                        x->u_bordersize / 2,
+                        rect.width - x->u_bordersize,
+                        rect.height - x->u_bordersize);
     
     jgraphics_fill(g);
     
     
 	// paint samples
-    jgraphics_set_source_jrgba(g, &x->u_samples);
+    jgraphics_set_line_width(h, x->u_linewidth);
+    jgraphics_set_source_jrgba(h, &x->u_samples);
     
     //draw initial waveform (x = 0)
     if(x->init == 0){
         x->init = 1;
-        x->u_gridwidth = rect.width - x->u_boardersize;
+        x->u_gridwidth = rect.width - x->u_bordersize;
         x->u_gridheight = rect.height / 2;
         x->u_buffer = malloc(sizeof(double)*x->u_bufferSize);
-        for(int i = 0; i < x->u_bufferSize; i++){
-            jgraphics_rectangle(g,
-                                (double) i / 10 + (x->u_boardersize / 2),
-                                x->u_gridheight,
-                                0.1,
-                                x->u_linewidth);
+        for(int i = 0; i < x->u_gridwidth; i++){
+            if(i == 0){
+                jgraphics_move_to(g, x->u_bordersize / 2, x->u_gridheight);
+                i++;
+            } else {
+                jgraphics_line_to(g, (double) i + (x->u_bordersize / 2), x->u_gridheight);
+                i++;
+            }
         }
     } else {
-        if(x->u_gridwidth != rect.width - x->u_boardersize){
-            x->u_gridwidth = rect.width - x->u_boardersize;
-        }
-        if(x->u_gridheight != rect.height){
-            x->u_gridheight = rect.height / 2;
-        }
+        
+        x->u_gridwidth = rect.width - x->u_bordersize;
+        x->u_gridheight = rect.height / 2;
         
         x->k_paint = x->k_dsp;
         x->u_buffer[x->k_paint] = ((x->u_buffer[x->k_paint] + 1) / 2) * rect.height;
         
         //attempt at zero-cross latching
-        while(!(x->u_buffer[x->k_paint] < 0 && x->u_buffer[x->k_paint + 1] > 0)){
+        /*while(!(x->u_buffer[x->k_paint] < 0 && x->u_buffer[x->k_paint + 1] > 0)){
             if(x->k_paint == 0){
                 x->k_paint = x->u_bufferSize - 1;
             }
             x->k_paint--;
-        }
+        }*/
         
         //draw waveform
         for(int i = 0; i < x->u_gridwidth; i++){
@@ -171,17 +173,18 @@ void oscope_paint(t_oscope *x, t_object *patcherview)
             }
             x->u_buffer[x->k_paint] = ((x->u_buffer[x->k_paint] + 1) / 2) * rect.height;
             if(i == 0){
-                jgraphics_move_to(g, x->u_boardersize / 2, x->u_buffer[x->k_paint]);
+                jgraphics_move_to(h, x->u_bordersize / 2, x->u_buffer[x->k_paint]);
                 x->k_paint--;
             } else {
-                jgraphics_line_to(g, (double) i + (x->u_boardersize / 2), x->u_buffer[x->k_paint]);
+                jgraphics_line_to(h, (double) i + (x->u_bordersize / 2), x->u_buffer[x->k_paint]);
                 x->k_paint--;
             }
         }
             
     }
+    jgraphics_set_line_width(h, x->u_linewidth);
     
-    jgraphics_stroke(g);
+    jgraphics_stroke(h);
     
 }
 
@@ -252,7 +255,8 @@ void oscope_perform64(t_oscope *x, t_object *dsp64, double **ins, long numins, d
             (x->k_dsp)++;
         }
     }
-    jbox_redraw((t_jbox *)x);
+
+        jbox_redraw((t_jbox *)x);
 
 }
 
