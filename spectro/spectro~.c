@@ -142,9 +142,6 @@ void spectro_paint(t_spectro *x, t_object *patcherview)
     
     
     
-    
-    
-    
     /*
      
      PAINT CODE

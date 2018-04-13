@@ -10,6 +10,8 @@
 #include "jpatcher_api.h"
 #include "jgraphics.h"
 #include "z_dsp.h"  
+#include <string.h>
+
 
 typedef struct _oscope
 {
@@ -29,10 +31,13 @@ typedef struct _oscope
     int k_dsp;
     int k_paint;
     
+    long attrLatching;
+    
 } t_oscope;
 
 
 void *oscope_new(t_symbol *s, long argc, t_atom *argv);
+void oscope_bang(t_oscope *x);
 void oscope_free(t_oscope *x);
 void oscope_assist(t_oscope *x, void *b, long m, long a, char *s);
 void oscope_paint(t_oscope *x, t_object *patcherview);
@@ -56,6 +61,7 @@ void ext_main(void *r)
 	class_addmethod(c, (method)oscope_paint,		"paint",	A_CANT, 0);
 	class_addmethod(c, (method)oscope_assist,		"assist",	A_CANT, 0);
     class_addmethod(c, (method)oscope_dsp64,		"dsp64", A_CANT, 0);
+    class_addmethod(c, (method)oscope_bang,		    "bang", A_CANT, 0);
 
     
     
@@ -92,6 +98,17 @@ void ext_main(void *r)
     CLASS_ATTR_STYLE_LABEL(c, "linewidth", 0, "double", "Line Width");
     
     CLASS_STICKY_ATTR_CLEAR(c, "category");
+    
+    
+    CLASS_STICKY_ATTR(c, "category", 0, "Waveform");
+    
+    CLASS_ATTR_LONG(c, "latching", 0, t_oscope, attrLatching);
+    CLASS_ATTR_BASIC(c, "latching", 0);
+    CLASS_ATTR_STYLE_LABEL(c, "latching", 0, "onoff", "Zero-Cross Latching");
+    CLASS_ATTR_SAVE(c, "latching", 0);
+    
+    CLASS_STICKY_ATTR_CLEAR(c, "category");
+
 
 	CLASS_ATTR_DEFAULT(c,"patching_rect",0, "0. 0. 400. 250.");
 
@@ -138,7 +155,7 @@ void oscope_paint(t_oscope *x, t_object *patcherview)
     jgraphics_set_source_jrgba(h, &x->u_samples);
     
     //draw initial waveform (x = 0)
-    if(sys_getdspstate() == 0 || *x->u_buffer == 0){
+    if(sys_getdspstate() == 0){
         x->u_gridwidth = rect.width - x->u_bordersize;
         x->u_gridheight = rect.height / 2;
         for(int i = 0; i < x->u_gridwidth; i++){
@@ -154,38 +171,81 @@ void oscope_paint(t_oscope *x, t_object *patcherview)
         
         x->u_gridwidth = rect.width - x->u_bordersize;
         x->u_gridheight = rect.height / 2;
-        x->k_paint = x->k_dsp;
+        x->k_paint =((x->k_dsp - x->u_gridwidth + x->u_bufferSize) % x->u_bufferSize);
         
-        //attempt at zero-cross latching
-        while(!(x->u_buffer[x->k_paint] < 0 && x->u_buffer[x->k_paint + 1] > 0)){
-            if(x->k_paint == 0){
-                x->k_paint = x->u_bufferSize - 1;
-            }
-            x->k_paint--;
-        }
-        
-        //draw waveform
-        for(int i = 0; i < x->u_gridwidth; i++){
-            if(x->k_paint == 0){
-                x->k_paint = x->u_bufferSize - 1;
-            }
-            //scale samples to current gridwidth
-            x->u_buffer[x->k_paint] = ((x->u_buffer[x->k_paint] + 1) / 2) * (rect.height - (x->u_bordersize * 2)) + x->u_bordersize;
-
-            if(i == 0){
-                jgraphics_move_to(h, x->u_bordersize / 2, x->u_buffer[x->k_paint]);
-                x->k_paint--;
-            } else {
-                jgraphics_line_to(h, (double) i + (x->u_bordersize / 2), x->u_buffer[x->k_paint]);
-                x->k_paint--;
-            }
-        }
+        //zero-cross latching
+        if(x->attrLatching){
+            bool isCrossing = 1;
+                while(!(x->u_buffer[x->k_paint] < 0 && x->u_buffer[(x->k_paint + 1) % x->u_bufferSize] > 0)){
+                    if(x->k_paint == 0){
+                        x->k_paint = x->u_bufferSize;
+                    }
+                    x->k_paint--;
+                    if(x->k_paint == x->k_dsp){
+                        isCrossing = 0;
+                        break;
+                    }
+                }
             
+            double w2, w1;
+            
+            if(isCrossing == 0){
+                w2 = 1;
+                w1 = 0;
+            } else {
+                w2 = fabs(x->u_buffer[x->k_paint]) / fabs(x->u_buffer[x->k_paint] - x->u_buffer[(x->k_paint + 1) % x->u_bufferSize]);
+                w1 = 1 - w2;
+            }
+            
+            post ("k paint:%d", x->k_paint);
+            post ("k dsp:%d", x->k_dsp);
+            post ("ubuffer 1:%f", x->u_buffer[x->k_paint]);
+            post ("ubuffer 2:%f", x->u_buffer[x->k_paint + 1]);
+        
+            //draw waveform
+            for(int i = 0; i < x->u_gridwidth; i++){
+                int index = (x->k_paint + i) % x->u_bufferSize;
+                
+                double y1 = x->u_buffer[index];
+                double y2 = x->u_buffer[(index + 1) % x->u_bufferSize];
+                
+                double sample = (y1 * w1) + (y2 * w2);
+                
+                //scale samples to current gridwidth
+                sample = ((-sample + 1) / 2) * (rect.height - (x->u_bordersize * 2)) + x->u_bordersize;
+                
+                if(i == 0){
+                    jgraphics_move_to(h, x->u_bordersize / 2, sample);
+                } else {
+                    jgraphics_line_to(h, (double) i + (x->u_bordersize / 2), sample);
+                }
+            }
+
+
+        } else {
+            
+            //draw waveform
+            for(int i = 0; i < x->u_gridwidth; i++){
+                int index = (x->k_paint + i) % x->u_bufferSize;
+
+                double sample = x->u_buffer[index];
+                
+                //scale samples to current gridwidth
+                sample = ((-sample + 1) / 2) * (rect.height - (x->u_bordersize * 2)) + x->u_bordersize;
+                
+                if(i == 0){
+                    jgraphics_move_to(h, x->u_bordersize / 2, sample);
+                } else {
+                    jgraphics_line_to(h, (double) i + (x->u_bordersize / 2), sample);
+                }
+            }
+
+        }
+    
     }
+    
     jgraphics_set_line_width(h, x->u_linewidth);
-    
     jgraphics_stroke(h);
-    
 }
 
 
@@ -199,6 +259,10 @@ void oscope_free(t_oscope *x)
 {
     dsp_freejbox((t_pxjbox *)x);
 	jbox_free((t_jbox *)x);
+}
+
+void oscope_bang(t_oscope *x){
+    jbox_redraw((t_jbox *)x);
 }
 
 void *oscope_new(t_symbol *s, long argc, t_atom *argv)
