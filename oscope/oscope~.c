@@ -190,17 +190,12 @@ void oscope_paint(t_oscope *x, t_object *patcherview)
             double w2, w1;
             
             if(isCrossing == 0){
-                w2 = 1;
+                w2 = 0;
                 w1 = 0;
             } else {
                 w2 = fabs(x->u_buffer[x->k_paint]) / fabs(x->u_buffer[x->k_paint] - x->u_buffer[(x->k_paint + 1) % x->u_bufferSize]);
                 w1 = 1 - w2;
             }
-            
-            post ("k paint:%d", x->k_paint);
-            post ("k dsp:%d", x->k_dsp);
-            post ("ubuffer 1:%f", x->u_buffer[x->k_paint]);
-            post ("ubuffer 2:%f", x->u_buffer[x->k_paint + 1]);
         
             //draw waveform
             for(int i = 0; i < x->u_gridwidth; i++){
