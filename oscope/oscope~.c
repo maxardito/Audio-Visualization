@@ -1,5 +1,5 @@
 /*
-	oscope~ -- new and improved oscilloscope
+	oscope~ -- new and improved oscilloscope [Title still TBD, relative to audio package
  
     Part of a new group of smart audio visualization objects for Max which includes an oscilloscope,
     a spectroscope, a 3D spectroscope, smart meters, and maybe more
@@ -15,29 +15,31 @@
 
 typedef struct _oscope
 {
+    //jgraphics
 	t_pxjbox u_box;
-	void *u_out;
 	t_jrgba u_outline;
 	t_jrgba u_background;
     t_jrgba u_samples;
-    
     double u_bordersize;
     double u_linewidth;
     int u_gridwidth;
     double u_gridheight;
     
+    //audio out
+    void *u_out;
+    
+    //audio buffer
     double *u_buffer;
     int u_bufferSize;
     int k_dsp;
-    int k_paint;
     
+    //latching attribute
     long attrLatching;
     
 } t_oscope;
 
 
 void *oscope_new(t_symbol *s, long argc, t_atom *argv);
-void oscope_bang(t_oscope *x);
 void oscope_free(t_oscope *x);
 void oscope_assist(t_oscope *x, void *b, long m, long a, char *s);
 void oscope_paint(t_oscope *x, t_object *patcherview);
@@ -47,6 +49,8 @@ void oscope_dsp64(t_oscope *x, t_object *dsp64, short *count, double samplerate,
 
 
 static t_class *s_oscope_class;
+
+/*====================================================================================*/
 
 void ext_main(void *r)
 {
@@ -61,11 +65,8 @@ void ext_main(void *r)
 	class_addmethod(c, (method)oscope_paint,		"paint",	A_CANT, 0);
 	class_addmethod(c, (method)oscope_assist,		"assist",	A_CANT, 0);
     class_addmethod(c, (method)oscope_dsp64,		"dsp64", A_CANT, 0);
-    class_addmethod(c, (method)oscope_bang,		    "bang", A_CANT, 0);
-
     
-    
-	// attributes
+    /*COLOR ATTRIBUTES*/
 	CLASS_STICKY_ATTR(c, "category", 0, "Color");
     
 	CLASS_ATTR_RGBA(c, "bgcolor", 0, t_oscope, u_background);
@@ -85,6 +86,8 @@ void ext_main(void *r)
 
 	CLASS_STICKY_ATTR_CLEAR(c, "category");
     
+    
+    /*DIMENSION ATTRIBUTES*/
     CLASS_STICKY_ATTR(c, "category", 0, "Dimensions");
     
     CLASS_ATTR_DOUBLE(c, "bordersize", 0, t_oscope, u_bordersize);
@@ -100,6 +103,7 @@ void ext_main(void *r)
     CLASS_STICKY_ATTR_CLEAR(c, "category");
     
     
+    /*WAVEFORM ATTRIBUTES*/
     CLASS_STICKY_ATTR(c, "category", 0, "Waveform");
     
     CLASS_ATTR_LONG(c, "latching", 0, t_oscope, attrLatching);
@@ -108,25 +112,32 @@ void ext_main(void *r)
     CLASS_ATTR_SAVE(c, "latching", 0);
     
     CLASS_STICKY_ATTR_CLEAR(c, "category");
-
-
+    
+    
+    /*PATCHING RECT ATTRIBUTE*/
 	CLASS_ATTR_DEFAULT(c,"patching_rect",0, "0. 0. 400. 250.");
 
 	class_register(CLASS_BOX, c);
 	s_oscope_class = c;
 }
 
+
+
 void oscope_assist(t_oscope *x, void *b, long m, long a, char *s)
 {
 	if (m == 1)		//inlet
 		sprintf(s, "(signal) Audio Input");
+    if (m == 2)     //outlet
+        sprintf(s, "(signal) Audio Output");
 }
+
+
 
 void oscope_paint(t_oscope *x, t_object *patcherview)
 {
 	t_rect rect;
-	t_jgraphics *g = (t_jgraphics *) patcherview_get_jgraphics(patcherview);		// obtain graphics context
-    t_jgraphics *h = (t_jgraphics *) patcherview_get_jgraphics(patcherview);
+	t_jgraphics *g = (t_jgraphics *) patcherview_get_jgraphics(patcherview);		// graphics context for rectangle and border
+    t_jgraphics *h = (t_jgraphics *) patcherview_get_jgraphics(patcherview);        // graphics context for samples/waveform
 	jbox_get_rect_for_view((t_object *)x, patcherview, &rect);
 
 
@@ -154,10 +165,13 @@ void oscope_paint(t_oscope *x, t_object *patcherview)
     jgraphics_set_line_width(h, x->u_linewidth);
     jgraphics_set_source_jrgba(h, &x->u_samples);
     
-    //draw initial waveform (x = 0)
+    //prep dimensions for waveform drawing
+    x->u_gridwidth = rect.width - x->u_bordersize;
+    x->u_gridheight = rect.height / 2;
+    
+
+    //draw waveform of zero if audio is off
     if(sys_getdspstate() == 0){
-        x->u_gridwidth = rect.width - x->u_bordersize;
-        x->u_gridheight = rect.height / 2;
         for(int i = 0; i < x->u_gridwidth; i++){
             if(i == 0){
                 jgraphics_move_to(g, x->u_bordersize / 2, x->u_gridheight);
@@ -167,78 +181,67 @@ void oscope_paint(t_oscope *x, t_object *patcherview)
                 i++;
             }
         }
+        
     } else {
         
-        x->u_gridwidth = rect.width - x->u_bordersize;
-        x->u_gridheight = rect.height / 2;
-        x->k_paint =((x->k_dsp - x->u_gridwidth + x->u_bufferSize) % x->u_bufferSize);
+        //variables used for linear interpolation
+        double y1, y2, w1, w2, sample;
         
-        //zero-cross latching
+        //counter independent from audio thread to traverse sample array
+        int k_paint = ((x->k_dsp - x->u_gridwidth + x->u_bufferSize) % x->u_bufferSize);
+        
+        //zero-cross latching settings
         if(x->attrLatching){
             bool isCrossing = 1;
-                while(!(x->u_buffer[x->k_paint] < 0 && x->u_buffer[(x->k_paint + 1) % x->u_bufferSize] > 0)){
-                    if(x->k_paint == 0){
-                        x->k_paint = x->u_bufferSize;
+                //find a zero-crossing point
+                while(!(x->u_buffer[k_paint] < 0 && x->u_buffer[(k_paint + 1) % x->u_bufferSize] > 0)){
+                    if(k_paint == 0){
+                        k_paint = x->u_bufferSize;
                     }
-                    x->k_paint--;
-                    if(x->k_paint == x->k_dsp){
+                    k_paint--;
+                    //break if no point found
+                    if(k_paint == x->k_dsp){
                         isCrossing = 0;
                         break;
                     }
                 }
-            
-            double w2, w1;
-            
+            //do not interpolate if no point found
             if(isCrossing == 0){
                 w2 = 0;
                 w1 = 0;
             } else {
-                w2 = fabs(x->u_buffer[x->k_paint]) / fabs(x->u_buffer[x->k_paint] - x->u_buffer[(x->k_paint + 1) % x->u_bufferSize]);
+                //linear interpolation
+                w2 = fabs(x->u_buffer[k_paint]) / fabs(x->u_buffer[k_paint] - x->u_buffer[(k_paint + 1) % x->u_bufferSize]);
                 w1 = 1 - w2;
             }
-        
-            //draw waveform
-            for(int i = 0; i < x->u_gridwidth; i++){
-                int index = (x->k_paint + i) % x->u_bufferSize;
-                
-                double y1 = x->u_buffer[index];
-                double y2 = x->u_buffer[(index + 1) % x->u_bufferSize];
-                
-                double sample = (y1 * w1) + (y2 * w2);
-                
-                //scale samples to current gridwidth
-                sample = ((-sample + 1) / 2) * (rect.height - (x->u_bordersize * 2)) + x->u_bordersize;
-                
-                if(i == 0){
-                    jgraphics_move_to(h, x->u_bordersize / 2, sample);
-                } else {
-                    jgraphics_line_to(h, (double) i + (x->u_bordersize / 2), sample);
-                }
-            }
-
-
-        } else {
-            
-            //draw waveform
-            for(int i = 0; i < x->u_gridwidth; i++){
-                int index = (x->k_paint + i) % x->u_bufferSize;
-
-                double sample = x->u_buffer[index];
-                
-                //scale samples to current gridwidth
-                sample = ((-sample + 1) / 2) * (rect.height - (x->u_bordersize * 2)) + x->u_bordersize;
-                
-                if(i == 0){
-                    jgraphics_move_to(h, x->u_bordersize / 2, sample);
-                } else {
-                    jgraphics_line_to(h, (double) i + (x->u_bordersize / 2), sample);
-                }
-            }
-
         }
-    
+        
+        //draw waveform
+        for(int i = 0; i < x->u_gridwidth; i++){
+            //index for drawing samples
+            int index = (k_paint + i) % x->u_bufferSize;
+            
+            //interpolate if latching is on
+            if(x->attrLatching){
+                y1 = x->u_buffer[index];
+                y2 = x->u_buffer[(index + 1) % x->u_bufferSize];
+                sample = (y1 * w1) + (y2 * w2);
+            } else {
+                sample = x->u_buffer[index];
+            }
+            
+            //scale samples to current gridwidth
+            sample = ((-sample + 1) / 2) * (rect.height - (x->u_bordersize * 2)) + x->u_bordersize;
+                
+            if(i == 0){
+                jgraphics_move_to(h, x->u_bordersize / 2, sample);
+            } else {
+                jgraphics_line_to(h, (double) i + (x->u_bordersize / 2), sample);
+            }
+        }
     }
     
+    //update linewidth and draw
     jgraphics_set_line_width(h, x->u_linewidth);
     jgraphics_stroke(h);
 }
@@ -250,15 +253,13 @@ void oscope_getdrawparams(t_oscope *x, t_object *patcherview, t_jboxdrawparams *
 	params->d_boxfillcolor.alpha = 0;
 }
 
+
 void oscope_free(t_oscope *x)
 {
     dsp_freejbox((t_pxjbox *)x);
 	jbox_free((t_jbox *)x);
 }
 
-void oscope_bang(t_oscope *x){
-    jbox_redraw((t_jbox *)x);
-}
 
 void *oscope_new(t_symbol *s, long argc, t_atom *argv)
 {
@@ -279,9 +280,9 @@ void *oscope_new(t_symbol *s, long argc, t_atom *argv)
 			   | JBOX_DRAWBACKGROUND
 			   ;
 
-    x->u_bufferSize = 10000;
+    //set dsp incrementor, buffer size, allocate audio buffer
     x->k_dsp = 0;
-    x->k_paint = 0;
+    x->u_bufferSize = 10000;
     x->u_buffer = malloc(sizeof(double)*x->u_bufferSize);
     
 	jbox_new((t_jbox *)x, boxflags, argc, argv);
@@ -296,11 +297,11 @@ void *oscope_new(t_symbol *s, long argc, t_atom *argv)
 void oscope_perform64(t_oscope *x, t_object *dsp64, double **ins, long numins, double **outs, long numouts, long sampleframes, long flags, void *userparam)
 {
     
-    double    *in = ins[0];     // first inlet
-    double    *out = outs[0];   // first outlet
-    double     n = sampleframes; // vector size
+    double    *in = ins[0];
+    double    *out = outs[0];
+    double     n = sampleframes;
     
-    while (n--) {               // perform calculation on all samples
+    while (n--) {
         if(x->k_dsp == x->u_bufferSize){
             x->u_buffer[x->k_dsp] = *in++;
             *out++ = x->u_buffer[x->k_dsp];
@@ -311,9 +312,8 @@ void oscope_perform64(t_oscope *x, t_object *dsp64, double **ins, long numins, d
             (x->k_dsp)++;
         }
     }
-
-        jbox_redraw((t_jbox *)x);
-
+    
+    jbox_redraw((t_jbox *)x);
 }
 
 
