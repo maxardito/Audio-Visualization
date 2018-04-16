@@ -257,6 +257,7 @@ void oscope_getdrawparams(t_oscope *x, t_object *patcherview, t_jboxdrawparams *
 void oscope_free(t_oscope *x)
 {
     dsp_freejbox((t_pxjbox *)x);
+    free(x->u_buffer);
 	jbox_free((t_jbox *)x);
 }
 
