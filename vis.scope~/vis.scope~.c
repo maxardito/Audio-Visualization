@@ -1,7 +1,7 @@
 /*
-	oscope~ -- new and improved oscilloscope [Title still TBD, relative to audio package
+	vis.scope~ -- new and improved oscilloscope
  
-    Part of a new group of smart audio visualization objects for Max which includes an oscilloscope,
+    Part of a group of smart audio visualization objects for Max which includes an oscilloscope,
     a spectroscope, a 3D spectroscope, smart meters, and maybe more
 */
 
@@ -56,7 +56,7 @@ void ext_main(void *r)
 {
 	t_class *c;
 
-	c = class_new("oscope~", (method)oscope_new, (method)oscope_free, sizeof(t_oscope), 0L, A_GIMME, 0);
+	c = class_new("vis.scope~", (method)oscope_new, (method)oscope_free, sizeof(t_oscope), 0L, A_GIMME, 0);
 
 	c->c_flags |= CLASS_FLAG_NEWDICTIONARY;
 	jbox_initclass(c, JBOX_FIXWIDTH | JBOX_COLOR);
@@ -97,7 +97,7 @@ void ext_main(void *r)
     
     CLASS_ATTR_DOUBLE(c, "linewidth", 0, t_oscope, u_linewidth);
     CLASS_ATTR_BASIC(c, "linewidth", 0);
-    CLASS_ATTR_DEFAULTNAME(c, "linewidth", 0, "3.");
+    CLASS_ATTR_DEFAULTNAME(c, "linewidth", 0, "1.");
     CLASS_ATTR_STYLE_LABEL(c, "linewidth", 0, "double", "Line Width");
     
     CLASS_STICKY_ATTR_CLEAR(c, "category");

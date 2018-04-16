@@ -1,0 +1,30 @@
+{
+  "DVTSourceControlWorkspaceBlueprintPrimaryRemoteRepositoryKey" : "2487A34263B746A499841016327D2EF14F01537E",
+  "DVTSourceControlWorkspaceBlueprintWorkingCopyRepositoryLocationsKey" : {
+
+  },
+  "DVTSourceControlWorkspaceBlueprintWorkingCopyStatesKey" : {
+    "2487A34263B746A499841016327D2EF14F01537E" : 0,
+    "483863695E0C4EC2BE50094D8F0CF26294CCA31F" : 0
+  },
+  "DVTSourceControlWorkspaceBlueprintIdentifierKey" : "F57DE421-C8D1-4AA5-A076-8EAEF80957D8",
+  "DVTSourceControlWorkspaceBlueprintWorkingCopyPathsKey" : {
+    "2487A34263B746A499841016327D2EF14F01537E" : "audio-visualization\/",
+    "483863695E0C4EC2BE50094D8F0CF26294CCA31F" : "max\/"
+  },
+  "DVTSourceControlWorkspaceBlueprintNameKey" : "vis.scope~",
+  "DVTSourceControlWorkspaceBlueprintVersion" : 204,
+  "DVTSourceControlWorkspaceBlueprintRelativePathToProjectKey" : "oscope\/vis.scope~.xcodeproj",
+  "DVTSourceControlWorkspaceBlueprintRemoteRepositoriesKey" : [
+    {
+      "DVTSourceControlWorkspaceBlueprintRemoteRepositoryURLKey" : "github.com:Cycling74\/audio-visualization.git",
+      "DVTSourceControlWorkspaceBlueprintRemoteRepositorySystemKey" : "com.apple.dt.Xcode.sourcecontrol.Git",
+      "DVTSourceControlWorkspaceBlueprintRemoteRepositoryIdentifierKey" : "2487A34263B746A499841016327D2EF14F01537E"
+    },
+    {
+      "DVTSourceControlWorkspaceBlueprintRemoteRepositoryURLKey" : "git.assembla.com:max.git",
+      "DVTSourceControlWorkspaceBlueprintRemoteRepositorySystemKey" : "com.apple.dt.Xcode.sourcecontrol.Git",
+      "DVTSourceControlWorkspaceBlueprintRemoteRepositoryIdentifierKey" : "483863695E0C4EC2BE50094D8F0CF26294CCA31F"
+    }
+  ]
+}
