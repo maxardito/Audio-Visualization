@@ -1,5 +1,5 @@
 /*
-	spectro~ -- new and improved spectroscope
+	vis.spectro~ -- new and improved spectroscope
  
     Part of a new group of smart audio visualization objects for Max which includes an oscilloscope,
     a spectroscope, a 3D spectroscope, smart meters, and maybe more
@@ -48,7 +48,7 @@ void ext_main(void *r)
 {
 	t_class *c;
 
-	c = class_new("spectro~", (method)spectro_new, (method)spectro_free, sizeof(t_spectro), 0L, A_GIMME, 0);
+	c = class_new("vis.spectro~", (method)spectro_new, (method)spectro_free, sizeof(t_spectro), 0L, A_GIMME, 0);
 
 	c->c_flags |= CLASS_FLAG_NEWDICTIONARY;
 	jbox_initclass(c, JBOX_FIXWIDTH | JBOX_COLOR);

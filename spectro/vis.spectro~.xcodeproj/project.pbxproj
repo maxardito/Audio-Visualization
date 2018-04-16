@@ -7,14 +7,14 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		CFC6EA74207D2F7F00B0B794 /* spectro~.xcconfig in Resources */ = {isa = PBXBuildFile; fileRef = CFC6EA6A20769C9000B0B794 /* spectro~.xcconfig */; };
-		CFC6EA75207D30DA00B0B794 /* spectro~.c in Sources */ = {isa = PBXBuildFile; fileRef = 22CF114D0EE9A6A70054F513 /* spectro~.c */; };
+		CFC6EA74207D2F7F00B0B794 /* vis.spectro~.xcconfig in Resources */ = {isa = PBXBuildFile; fileRef = CFC6EA6A20769C9000B0B794 /* vis.spectro~.xcconfig */; };
+		CFC6EA75207D30DA00B0B794 /* vis.spectro~.c in Sources */ = {isa = PBXBuildFile; fileRef = 22CF114D0EE9A6A70054F513 /* vis.spectro~.c */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		22CF114D0EE9A6A70054F513 /* spectro~.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = "spectro~.c"; sourceTree = "<group>"; };
-		2FBBEAE508F335360078DB84 /* spectro~.mxo */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "spectro~.mxo"; sourceTree = BUILT_PRODUCTS_DIR; };
-		CFC6EA6A20769C9000B0B794 /* spectro~.xcconfig */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.xcconfig; path = "spectro~.xcconfig"; sourceTree = "<group>"; };
+		22CF114D0EE9A6A70054F513 /* vis.spectro~.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = "vis.spectro~.c"; sourceTree = "<group>"; };
+		2FBBEAE508F335360078DB84 /* vis.spectro~.mxo */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "vis.spectro~.mxo"; sourceTree = BUILT_PRODUCTS_DIR; };
+		CFC6EA6A20769C9000B0B794 /* vis.spectro~.xcconfig */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.xcconfig; path = "vis.spectro~.xcconfig"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -31,8 +31,8 @@
 		089C166AFE841209C02AAC07 /* iterator */ = {
 			isa = PBXGroup;
 			children = (
-				CFC6EA6A20769C9000B0B794 /* spectro~.xcconfig */,
-				22CF114D0EE9A6A70054F513 /* spectro~.c */,
+				CFC6EA6A20769C9000B0B794 /* vis.spectro~.xcconfig */,
+				22CF114D0EE9A6A70054F513 /* vis.spectro~.c */,
 				19C28FB4FE9D528D11CA2CBB /* Products */,
 			);
 			name = iterator;
@@ -41,7 +41,7 @@
 		19C28FB4FE9D528D11CA2CBB /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				2FBBEAE508F335360078DB84 /* spectro~.mxo */,
+				2FBBEAE508F335360078DB84 /* vis.spectro~.mxo */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -75,7 +75,7 @@
 			);
 			name = "max-external";
 			productName = iterator;
-			productReference = 2FBBEAE508F335360078DB84 /* spectro~.mxo */;
+			productReference = 2FBBEAE508F335360078DB84 /* vis.spectro~.mxo */;
 			productType = "com.apple.product-type.bundle";
 		};
 /* End PBXNativeTarget section */
@@ -86,7 +86,7 @@
 			attributes = {
 				LastUpgradeCheck = 0800;
 			};
-			buildConfigurationList = 2FBBEACF08F335010078DB84 /* Build configuration list for PBXProject "spectro~" */;
+			buildConfigurationList = 2FBBEACF08F335010078DB84 /* Build configuration list for PBXProject "vis.spectro~" */;
 			compatibilityVersion = "Xcode 3.2";
 			developmentRegion = English;
 			hasScannedForEncodings = 1;
@@ -107,7 +107,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				CFC6EA74207D2F7F00B0B794 /* spectro~.xcconfig in Resources */,
+				CFC6EA74207D2F7F00B0B794 /* vis.spectro~.xcconfig in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -128,7 +128,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				CFC6EA75207D30DA00B0B794 /* spectro~.c in Sources */,
+				CFC6EA75207D30DA00B0B794 /* vis.spectro~.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -191,7 +191,7 @@
 		};
 		2FBBEAE108F335360078DB84 /* Development */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = CFC6EA6A20769C9000B0B794 /* spectro~.xcconfig */;
+			baseConfigurationReference = CFC6EA6A20769C9000B0B794 /* vis.spectro~.xcconfig */;
 			buildSettings = {
 				COPY_PHASE_STRIP = NO;
 				GCC_OPTIMIZATION_LEVEL = 0;
@@ -200,13 +200,13 @@
 					"-framework",
 					MaxAudioAPI,
 				);
-				PRODUCT_NAME = "spectro~";
+				PRODUCT_NAME = "vis.spectro~";
 			};
 			name = Development;
 		};
 		2FBBEAE208F335360078DB84 /* Deployment */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = CFC6EA6A20769C9000B0B794 /* spectro~.xcconfig */;
+			baseConfigurationReference = CFC6EA6A20769C9000B0B794 /* vis.spectro~.xcconfig */;
 			buildSettings = {
 				COPY_PHASE_STRIP = YES;
 				OTHER_LDFLAGS = (
@@ -214,14 +214,14 @@
 					"-framework",
 					MaxAudioAPI,
 				);
-				PRODUCT_NAME = "spectro~";
+				PRODUCT_NAME = "vis.spectro~";
 			};
 			name = Deployment;
 		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		2FBBEACF08F335010078DB84 /* Build configuration list for PBXProject "spectro~" */ = {
+		2FBBEACF08F335010078DB84 /* Build configuration list for PBXProject "vis.spectro~" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				2FBBEAD008F335010078DB84 /* Development */,
