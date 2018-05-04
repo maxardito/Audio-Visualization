@@ -326,3 +326,4 @@ void oscope_dsp64(t_oscope *x, t_object *dsp64, short *count, double samplerate,
 
 }
 
+
