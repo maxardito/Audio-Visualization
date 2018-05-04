@@ -7,6 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		CFC4079B209CB8BC00A81780 /* fft_mayer.c in Sources */ = {isa = PBXBuildFile; fileRef = CFC40798209CB8BC00A81780 /* fft_mayer.c */; };
+		CFC4079C209CB8BC00A81780 /* complex_math.c in Sources */ = {isa = PBXBuildFile; fileRef = CFC40799209CB8BC00A81780 /* complex_math.c */; };
+		CFC4079D209CB8BC00A81780 /* r_windows.c in Sources */ = {isa = PBXBuildFile; fileRef = CFC4079A209CB8BC00A81780 /* r_windows.c */; };
 		CFC6EA74207D2F7F00B0B794 /* vis.spectro~.xcconfig in Resources */ = {isa = PBXBuildFile; fileRef = CFC6EA6A20769C9000B0B794 /* vis.spectro~.xcconfig */; };
 		CFC6EA75207D30DA00B0B794 /* vis.spectro~.c in Sources */ = {isa = PBXBuildFile; fileRef = 22CF114D0EE9A6A70054F513 /* vis.spectro~.c */; };
 /* End PBXBuildFile section */
@@ -14,6 +17,9 @@
 /* Begin PBXFileReference section */
 		22CF114D0EE9A6A70054F513 /* vis.spectro~.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = "vis.spectro~.c"; sourceTree = "<group>"; };
 		2FBBEAE508F335360078DB84 /* vis.spectro~.mxo */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "vis.spectro~.mxo"; sourceTree = BUILT_PRODUCTS_DIR; };
+		CFC40798209CB8BC00A81780 /* fft_mayer.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = fft_mayer.c; path = "../../max/c74support-private/fft-support/fft_mayer.c"; sourceTree = "<group>"; };
+		CFC40799209CB8BC00A81780 /* complex_math.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = complex_math.c; path = "../../max/c74support-private/fft-support/complex_math.c"; sourceTree = "<group>"; };
+		CFC4079A209CB8BC00A81780 /* r_windows.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = r_windows.c; path = "../../max/c74support-private/fft-support/r_windows.c"; sourceTree = "<group>"; };
 		CFC6EA6A20769C9000B0B794 /* vis.spectro~.xcconfig */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.xcconfig; path = "vis.spectro~.xcconfig"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -32,6 +38,9 @@
 			isa = PBXGroup;
 			children = (
 				CFC6EA6A20769C9000B0B794 /* vis.spectro~.xcconfig */,
+				CFC40798209CB8BC00A81780 /* fft_mayer.c */,
+				CFC40799209CB8BC00A81780 /* complex_math.c */,
+				CFC4079A209CB8BC00A81780 /* r_windows.c */,
 				22CF114D0EE9A6A70054F513 /* vis.spectro~.c */,
 				19C28FB4FE9D528D11CA2CBB /* Products */,
 			);
@@ -128,7 +137,10 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				CFC4079D209CB8BC00A81780 /* r_windows.c in Sources */,
 				CFC6EA75207D30DA00B0B794 /* vis.spectro~.c in Sources */,
+				CFC4079C209CB8BC00A81780 /* complex_math.c in Sources */,
+				CFC4079B209CB8BC00A81780 /* fft_mayer.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
