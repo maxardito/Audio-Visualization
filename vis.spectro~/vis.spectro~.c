@@ -13,13 +13,14 @@
 #include "fft_mayer.proto.h"
 
 
-#define FFT_DEFAULT_POINTS 512
+#define FFT_DEFAULT_POINTS 2048
 #define FFT_MAX_POINTS	4096
 #define FFT_MIN_POINTS	16
 
 
 typedef struct _spectro
 {
+    
 	t_pxjbox u_box;
 	void *u_out;
 	t_jrgba u_outline;
@@ -30,11 +31,6 @@ typedef struct _spectro
     double u_linewidth;
     int u_gridwidth;
     double u_gridheight;
-    
-    double *u_buffer;
-    int u_bufferSize;
-    int k_dsp;
-    int k_paint;
     
     long		f_inverse;
     long		f_fftsize;		// size
@@ -63,9 +59,6 @@ void spectro_paint(t_spectro *x, t_object *patcherview);
 void spectro_getdrawparams(t_spectro *x, t_object *patcherview, t_jboxdrawparams *params);
 
 void spectro_setphase(t_spectro *x, long phase);
-
-void spectro_complex_perform64(t_spectro *x, t_object *dsp64, double **ins, long numins, double **outs, long numouts, long sampleframes, long flags, void *userparam);
-void spectro_real_perform64(t_spectro *x, t_object *dsp64, double **ins, long numins, double **outs, long numouts, long sampleframes, long flags, void *userparam);
 void spectro_realimag_perform64(t_spectro *x, t_object *dsp64, double **ins, long numins, double **outs, long numouts, long sampleframes, long flags, void *userparam);
 void spectro_dsp64(t_spectro *x, t_object *dsp64, short *count, double samplerate, long maxvectorsize, long flags);
 
@@ -189,32 +182,38 @@ void spectro_paint(t_spectro *x, t_object *patcherview)
         
     } else {
         
+        //rms scaling
+        /*float rms = 0;
+        for (int i = 0; i < x->f_fftsize; i++){
+            //magnitute calculation
+            rms += x->f_realout[i] * x->f_imagout[i];
+        }
+        rms = sqrt(rms / x->f_fftsize);
+        float scale = 1 / rms;
+        for (int i = 0; i < x->f_fftsize; i++){
+            x->f_realout[i] *= scale;
+            x->f_imagout[i] *= scale;
+        }
+        */
         
-        //fft(x->u_buffer, x->u_bufferSize, x->u_scratch);
-        
-        //counter independent from audio thread to traverse sample array
-        double sample;
-        //draw waveform
-        for(int i = 0; i < x->u_gridwidth; i++){
-            //index for drawing samples
-            
-            sample = (sqrt(pow(x->f_imagout[i], 2)+pow(x->f_realout[i], 2)));
+        double sample[x->f_fftsize];
 
-            //scale samples to current gridwidth
-            //sample = ((-sample + 1) / 2) * (rect.height - (x->u_bordersize * 2)) + x->u_bordersize;
+        //draw spectroscope
+        for(int i = 0; i < x->f_fftsize / 2; i++){
+            //scale samples to current gridheight
+            float px = ((float) i / (x->f_fftsize / 2)) * x->u_gridwidth;
             
+            sample[i] = (sqrt(pow(x->f_imagout[i], 2)+pow(x->f_realout[i], 2)));
             if(i == 0){
-                jgraphics_move_to(h, x->u_bordersize / 2, x->u_gridheight - (x->u_bordersize / 2) - sample);
+                jgraphics_move_to(h, x->u_bordersize / 2, x->u_gridheight - (x->u_bordersize / 2) - sample[i]);
             } else {
-                jgraphics_line_to(h, (double) i /*+ x->u_buffer[i].Re*/ + (x->u_bordersize / 2), x->u_gridheight - sample);
+                jgraphics_line_to(h, (float) px + (x->u_bordersize / 2), x->u_gridheight - sample[i]);
             }
         }
     }
     
     jgraphics_set_line_width(h, x->u_linewidth);
     jgraphics_stroke(h);
-    jgraphics_fill(h);
-    
 }
 
 
@@ -246,7 +245,7 @@ void *spectro_new(t_symbol *s, long argc, t_atom *argv)
     
     x = (t_spectro *)object_alloc(s_spectro_class);
     
-    x->f_fftsize = 512; // FFT size
+    x->f_fftsize = FFT_DEFAULT_POINTS; // FFT size
     x->f_interval = interval;
     x->f_phase = phase; // typed-in 3rd arg
     x->f_inverse = inverse;
@@ -276,14 +275,8 @@ void *spectro_new(t_symbol *s, long argc, t_atom *argv)
                | JBOX_GROWBOTH
 			   | JBOX_DRAWBACKGROUND
 			   ;
-
-    x->u_bufferSize = 2048;
-    x->k_dsp = 0;
-    x->k_paint = 0;
-    x->u_buffer = malloc(sizeof(double)*x->u_bufferSize);
     
 	jbox_new((t_jbox *)x, boxflags, argc, argv);
-    //object_new(CLASS_NOBOX, _fft);
     x->u_box.z_box.b_firstin = (void *)x;
     dsp_setupjbox((t_pxjbox *)x,2);
     outlet_new(x, "signal");
@@ -293,17 +286,6 @@ void *spectro_new(t_symbol *s, long argc, t_atom *argv)
 	jbox_ready((t_jbox *)x);
 	return x;
 }
-
-
-
-
-
-
-
-
-
-
-
 
 void spectro_setphase(t_spectro *x, long phase)
 {
@@ -356,203 +338,9 @@ void spectro_dsp64(t_spectro *x, t_object *dsp64, short *count, double samplerat
     // zero buffers in case they have junk in them (i.e. now makes no glitches when dsp is turned on)
     memset(x->f_realin, 0, sizeof(*x->f_realin) * x->f_fftsize*4);
     
-    if (count[3] && !count[1]) // real input only, but imag output
-        dsp_add64(dsp64, (t_object *)x, (t_perfroutine64)spectro_realimag_perform64, 0, NULL);
-    
-    else if (count[1] || count[3])	// imaginary inputs, use complex fft
-        dsp_add64(dsp64, (t_object *)x, (t_perfroutine64)spectro_complex_perform64, 0, NULL);
-    
-    else
-        dsp_add64(dsp64, (t_object *)x, (t_perfroutine64)spectro_real_perform64, 0, NULL);
+    dsp_add64(dsp64, (t_object *)x, (t_perfroutine64)spectro_realimag_perform64, 0, NULL);
 
 }
-
-void spectro_complex_perform64(t_spectro *x, t_object *dsp64, double **ins, long numins, double **outs, long numouts, long sampleframes, long flags, void *userparam)
-{
-    t_double	*inreal = ins[0];
-    t_double	*inimag = ins[1];
-    t_double	*outreal = outs[0];
-    t_double	*outimag = outs[1];
-    t_double	*outsync = outs[2];
-    int			n = (int) sampleframes;
-    int			m, np, count;
-    long		fftsize = x->f_fftsize;
-    long		interval = x->f_interval;
-    int			inverse = (int) x->f_inverse;
-    t_double	*b;
-    t_double	*ei = x->f_realin + fftsize;				// just do the real buf as the test
-    
-    if (n > fftsize) {
-        np = (int) fftsize;
-        count = n / fftsize;
-    }
-    else {
-        np = n;
-        count = 1;
-    }
-    
-    while (count--) {
-        m = np;												// we need this for sync outlet
-        
-        if (x->f_countdown) {								// if phase offset then decrement vector countdown
-            x->f_countdown--;
-            inreal += np; 									// need to do this in case sigvs > fftsize
-            inimag += np;
-            memset(outreal, 0, sizeof(*outreal) * np);
-            memset(outimag, 0, sizeof(*outimag) * np);
-            outreal += np;									// need to do this in case sigvs>fftsize
-            outimag += np;
-            while (m--)
-                *outsync++ = 0.0;							// output zero while no fft
-        }
-        else {												// otherwise move input samples into and out of fft buffers
-            double q;
-            
-            // buffer input to fftinput buffer
-            memcpy(x->f_realinptr, inreal, sizeof(*inreal) * np);
-            memcpy(x->f_imaginptr, inimag, sizeof(*inreal) * np);
-            
-            // increment pointers
-            x->f_realinptr += np;
-            x->f_imaginptr += np;
-            inreal += np;									// need to do this in case sigvs > fftsize
-            inimag += np;
-            b = x->f_realinptr;								// to compare later on and see if we need to do a fft
-            
-            // buffer fftoutput buffer to output
-            memcpy(outreal, x->f_realoutptr, sizeof(*inreal) * np);
-            memcpy(outimag, x->f_imagoutptr, sizeof(*inreal) * np);
-            q = (int)(x->f_realoutptr - x->f_realout);		// where to start sync count
-            while (m--) {
-                *outsync++ = q;
-                q += 1.0;
-            }
-            
-            // increment pointers
-            x->f_realoutptr += np;
-            x->f_imagoutptr += np;
-            outreal += np;									// need to do this in case sigvs > fftsize
-            outimag += np;
-            
-            // if realinptr = realin+fftsize then do the fft and reset pointers
-            if (b == ei) {
-                // this step could be eliminated if signals were unique
-                memcpy(x->f_realout, x->f_realin, sizeof(*x->f_realin) * fftsize * 2);
-                
-                if (inverse) {
-                    t_double	*real = x->f_realout;
-                    t_double	*imag = x->f_imagout;
-                    t_double	mult = x->f_1overpts;
-                    int			temp = (int) fftsize;					// so fftsize will always be valid
-                    
-                    ifft64((int) fftsize, real, imag);
-                    while (temp--) {
-                        *real++ *= mult;
-                        *imag++ *= mult;
-                    }
-                }
-                else
-                    fft64((int) fftsize, x->f_realout, x->f_imagout);
-                
-                // reset pointers
-                x->f_realoutptr = x->f_realout;
-                x->f_imagoutptr = x->f_imagout;
-                x->f_realinptr = x->f_realin;
-                x->f_imaginptr = x->f_imagin;
-                x->f_countdown = (interval - fftsize) / np;
-            }
-        }
-    }
-    jbox_redraw((t_jbox *)x);
-
-}
-
-
-void spectro_real_perform64(t_spectro *x, t_object *dsp64, double **ins, long numins, double **outs, long numouts, long sampleframes, long flags, void *userparam)
-{
-    t_double	*inreal = ins[0];
-    t_double	*outreal = outs[0];
-    t_double	*outsync = outs[2];
-    int			n = (int) sampleframes;
-    int			m,np,count;
-    long		fftsize = x->f_fftsize;
-    long		interval = x->f_interval;
-    int			inverse = (int) x->f_inverse;
-    t_double	*b;
-    t_double	*ei = x->f_realin + fftsize; // just do the real buf as the test
-    
-    if (n > fftsize) {
-        np = (int) fftsize;
-        count = n / fftsize;
-    }
-    else {
-        np = n;
-        count = 1;
-    }
-    
-    while (count--) {
-        m = np;													// we need this for sync outlet
-        
-        if (x->f_countdown) {									// if phase offset then decrement vector countdown
-            x->f_countdown--;
-            inreal += np;										// need to do this in case sigvs>fftsize
-            memset(outreal, 0, sizeof(*outreal) * np);
-            outreal += np;										// need to do this in case sigvs>fftsize
-            while (m--)
-                *outsync++ = 0.0;								// output zero while no fft
-        }
-        else {													// otherwise move input samples into and out of fft buffers
-            double q;
-            
-            // buffer input to fftinput buffer
-            memcpy(x->f_realinptr, inreal, sizeof(*inreal) * np);
-            
-            // increment pointers
-            x->f_realinptr += np;
-            inreal += np;										// need to do this in case sigvs>fftsize
-            b = x->f_realinptr;									// to compare later on and see if we need to do a fft
-            
-            // buffer fftoutput buffer to output
-            memcpy(outreal, x->f_realoutptr, sizeof(*x->f_realoutptr) * np);
-            q = (int)(x->f_realoutptr - x->f_realout); 			// where to start sync count
-            while (m--) {
-                *outsync++ = q;
-                q += 1.0;
-            }
-            
-            // increment pointers
-            x->f_realoutptr += np;
-            outreal += np;										// need to do this in case sigvs>fftsize
-            
-            // if realinptr = realin+fftsize then do the fft and reset pointers
-            if (b == ei) {
-                // this step could be eliminated if signals were unique
-                memcpy(x->f_realout, x->f_realin, sizeof(*x->f_realin) *fftsize);
-                
-                if (inverse) {
-                    t_double	*real = x->f_realout;
-                    t_double	mult = x->f_1overpts;
-                    int			temp = (int) fftsize;						// so fftsize will always be valid
-                    
-                    realifft64((int) fftsize, real);
-                    while (temp--) {
-                        *real++ *= mult;
-                    }
-                }
-                else
-                    realfft64((int) fftsize, x->f_realout);
-                
-                // reset pointers
-                x->f_realoutptr = x->f_realout;
-                x->f_realinptr = x->f_realin;
-                x->f_countdown = (interval - fftsize) / np;
-            }
-        }
-    }
-    jbox_redraw((t_jbox *)x);
-
-}
-
 
 void spectro_realimag_perform64(t_spectro *x, t_object *dsp64, double **ins, long numins, double **outs, long numouts, long sampleframes, long flags, void *userparam) // based on fft_complex_perform()
 {
@@ -561,6 +349,7 @@ void spectro_realimag_perform64(t_spectro *x, t_object *dsp64, double **ins, lon
     t_double	*outreal = outs[0];
     t_double	*outimag = outs[1];
     t_double	*outsync = outs[2];
+    
     int			n = (int) sampleframes;
     int			m, np, count;
     long		fftsize = x->f_fftsize;
@@ -653,7 +442,7 @@ void spectro_realimag_perform64(t_spectro *x, t_object *dsp64, double **ins, lon
                     nn = ((int) fftsize/2)-1;
                     
                     *imag++ = 0.0;									// imag at 0 Hz = 0.
-                    *real++;
+                    //*real++;
                     
                     while (nn--) {
                         *imag++ = -(*rout);
@@ -672,6 +461,7 @@ void spectro_realimag_perform64(t_spectro *x, t_object *dsp64, double **ins, lon
             }
         }
     }
+    
     jbox_redraw((t_jbox *)x);
 
 }
