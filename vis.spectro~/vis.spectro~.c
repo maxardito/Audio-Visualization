@@ -12,11 +12,8 @@
 #include "z_dsp.h"
 #include "fft_mayer.proto.h"
 
-
-#define FFT_DEFAULT_POINTS 2048
-#define FFT_MAX_POINTS	4096
-#define FFT_MIN_POINTS	16
-
+#define FFT_MIN_BINS 128
+#define FFT_MAX_BINS 2048
 
 typedef struct _spectro
 {
@@ -31,6 +28,8 @@ typedef struct _spectro
     double u_linewidth;
     int u_gridwidth;
     double u_gridheight;
+    
+    long u_binBit;
     
     long		f_inverse;
     long		f_fftsize;		// size
@@ -50,7 +49,6 @@ typedef struct _spectro
     t_double	*f_imagoutptr;	// output ptr into imagout
     
 } t_spectro;
-
 
 void *spectro_new(t_symbol *s, long argc, t_atom *argv);
 void spectro_free(t_spectro *x);
@@ -115,6 +113,16 @@ void ext_main(void *r)
     CLASS_ATTR_BASIC(c, "linewidth", 0);
     CLASS_ATTR_DEFAULTNAME(c, "linewidth", 0, "3.");
     CLASS_ATTR_STYLE_LABEL(c, "linewidth", 0, "double", "Line Width");
+    
+    CLASS_STICKY_ATTR_CLEAR(c, "category");
+    
+    CLASS_STICKY_ATTR(c, "category", 0, "FFT");
+    
+    CLASS_ATTR_LONG(c, "bins", 0, t_spectro, u_binBit);
+    CLASS_ATTR_LABEL(c, "bins", 0, "Number of Bins");
+    CLASS_ATTR_DEFAULT(c, "bins", 0, "4");
+    CLASS_ATTR_ENUMINDEX5(c, "bins", 0, "128", "256", "512", "1024", "2048");
+    CLASS_ATTR_BASIC(c, "bins", 0);
     
     CLASS_STICKY_ATTR_CLEAR(c, "category");
 
@@ -182,20 +190,6 @@ void spectro_paint(t_spectro *x, t_object *patcherview)
         
     } else {
         
-        //rms scaling
-        /*float rms = 0;
-        for (int i = 0; i < x->f_fftsize; i++){
-            //magnitute calculation
-            rms += x->f_realout[i] * x->f_imagout[i];
-        }
-        rms = sqrt(rms / x->f_fftsize);
-        float scale = 1 / rms;
-        for (int i = 0; i < x->f_fftsize; i++){
-            x->f_realout[i] *= scale;
-            x->f_imagout[i] *= scale;
-        }
-        */
-        
         double sample[x->f_fftsize];
 
         //draw spectroscope
@@ -204,6 +198,7 @@ void spectro_paint(t_spectro *x, t_object *patcherview)
             float px = ((float) i / (x->f_fftsize / 2)) * x->u_gridwidth;
             
             sample[i] = (sqrt(pow(x->f_imagout[i], 2)+pow(x->f_realout[i], 2)));
+            
             if(i == 0){
                 jgraphics_move_to(h, x->u_bordersize / 2, x->u_gridheight - (x->u_bordersize / 2) - sample[i]);
             } else {
@@ -235,7 +230,7 @@ void *spectro_new(t_symbol *s, long argc, t_atom *argv)
 	t_dictionary *d = NULL;
 	long boxflags;
     
-    long fftsize = FFT_DEFAULT_POINTS;
+    long fftsize = FFT_MAX_BINS;
     long interval = fftsize;
     long phase = 0;
     long inverse = (s == ps_ifft);
@@ -245,7 +240,7 @@ void *spectro_new(t_symbol *s, long argc, t_atom *argv)
     
     x = (t_spectro *)object_alloc(s_spectro_class);
     
-    x->f_fftsize = FFT_DEFAULT_POINTS; // FFT size
+    x->f_fftsize = fftsize; // FFT size
     x->f_interval = interval;
     x->f_phase = phase; // typed-in 3rd arg
     x->f_inverse = inverse;
@@ -344,6 +339,11 @@ void spectro_dsp64(t_spectro *x, t_object *dsp64, short *count, double samplerat
 
 void spectro_realimag_perform64(t_spectro *x, t_object *dsp64, double **ins, long numins, double **outs, long numouts, long sampleframes, long flags, void *userparam) // based on fft_complex_perform()
 {
+    //check if bin argument changed
+    
+    //update bin attribute
+    x->f_fftsize = FFT_MIN_BINS << x->u_binBit;
+    
     t_double	*inreal = ins[0];
     t_double	*inimag = ins[1];
     t_double	*outreal = outs[0];
