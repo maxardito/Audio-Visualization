@@ -30,6 +30,8 @@ typedef struct _spectro
     double u_gridheight;
     
     long u_binBit;
+    long u_logX;
+    long u_logY;
     
     long		f_inverse;
     long		f_fftsize;		// size
@@ -55,11 +57,11 @@ void spectro_free(t_spectro *x);
 void spectro_assist(t_spectro *x, void *b, long m, long a, char *s);
 void spectro_paint(t_spectro *x, t_object *patcherview);
 void spectro_getdrawparams(t_spectro *x, t_object *patcherview, t_jboxdrawparams *params);
-
 void spectro_setphase(t_spectro *x, long phase);
 void spectro_realimag_perform64(t_spectro *x, t_object *dsp64, double **ins, long numins, double **outs, long numouts, long sampleframes, long flags, void *userparam);
 void spectro_dsp64(t_spectro *x, t_object *dsp64, short *count, double samplerate, long maxvectorsize, long flags);
-
+static float lin_to_log(float val, float imax, float omax);
+static float log_to_lin(float val, float imin, float imax, float omin, float omax);
 
 static t_class *s_spectro_class;
 
@@ -123,6 +125,19 @@ void ext_main(void *r)
     CLASS_ATTR_DEFAULT(c, "bins", 0, "4");
     CLASS_ATTR_ENUMINDEX5(c, "bins", 0, "128", "256", "512", "1024", "2048");
     CLASS_ATTR_BASIC(c, "bins", 0);
+    
+    CLASS_ATTR_LONG(c, "interpX", 0, t_spectro, u_logX);
+    CLASS_ATTR_LABEL(c, "interpX", 0, "Frequency Interpolation");
+    CLASS_ATTR_DEFAULT(c, "interpX", 0, "0");
+    CLASS_ATTR_ENUMINDEX2(c, "interpX", 0, "Linear", "Logarithmic");
+    CLASS_ATTR_BASIC(c, "interpX", 0);
+    
+    CLASS_ATTR_LONG(c, "interpY", 0, t_spectro, u_logY);
+    CLASS_ATTR_LABEL(c, "interpY", 0, "Amplitude Interpolation");
+    CLASS_ATTR_DEFAULT(c, "interpY", 0, "0");
+    CLASS_ATTR_ENUMINDEX2(c, "interpY", 0, "Linear", "Logarithmic");
+    CLASS_ATTR_BASIC(c, "interpY", 0);
+    
     
     CLASS_STICKY_ATTR_CLEAR(c, "category");
 
@@ -190,14 +205,29 @@ void spectro_paint(t_spectro *x, t_object *patcherview)
         
     } else {
         
-        double sample[x->f_fftsize];
+        //number of bins below nyquist
+        int numberOfBins = (int) (x->f_fftsize / 2);
+        double sample[numberOfBins];
+        float px;
+        
 
         //draw spectroscope
-        for(int i = 0; i < x->f_fftsize / 2; i++){
-            //scale samples to current gridheight
-            float px = ((float) i / (x->f_fftsize / 2)) * x->u_gridwidth;
+        for(int i = 0; i < numberOfBins; i++){
             
-            sample[i] = (sqrt(pow(x->f_imagout[i], 2)+pow(x->f_realout[i], 2)));
+            //scale samples to current gridwidth
+            if(x->u_logX){
+                px = ((float) i / numberOfBins) * 22000;
+                px = log_to_lin(px, 0, 22000, 0, x->u_gridwidth);
+            } else {
+                px = ((float) i / numberOfBins) * x->u_gridwidth;
+            }
+            
+            
+            sample[i] = (sqrt(pow(x->f_imagout[i], 2) + pow(x->f_realout[i], 2)));
+            //sample[i] = log_to_lin(sample[i], 0., 1., 0., x->u_gridheight);
+            if(x->u_logY){
+                //interpolate samples
+            }
             
             if(i == 0){
                 jgraphics_move_to(h, x->u_bordersize / 2, x->u_gridheight - (x->u_bordersize / 2) - sample[i]);
@@ -285,6 +315,24 @@ void *spectro_new(t_symbol *s, long argc, t_atom *argv)
 void spectro_setphase(t_spectro *x, long phase)
 {
     x->f_phase = phase;
+}
+
+static float lin_to_log(float val, float imax, float omax)
+{
+    if (val == 0 || imax == 0) {
+        return 0;
+    }
+    return ((exp((val / imax * 1.000011 - 1.) * 9.21034) - 0.0001) * omax);
+}
+
+static float log_to_lin(float val, float imin, float imax, float omin, float omax)
+{
+    float logterm = ((val - imin) / (imax - imin)) + 0.0001f;
+    if (logterm <= 0) {
+        return omin;
+    }
+    return ((((log(logterm) / 9.21034f + 1.f) / 1.000011f) * (omax - omin)) + omin);
+    
 }
 
 
