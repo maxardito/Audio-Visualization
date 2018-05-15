@@ -1,6 +1,8 @@
 /*
 	vis.scope~ -- new and improved oscilloscope
  
+    Max Ardito (2018)
+ 
     Part of a group of smart audio visualization objects for Max which includes an oscilloscope,
     a spectroscope, a 3D spectroscope, smart meters, and maybe more
 */

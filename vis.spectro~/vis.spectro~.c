@@ -1,6 +1,8 @@
 /*
 	vis.spectro~ -- new and improved spectroscope
  
+    Max Ardito (2018)
+ 
     Part of a new group of smart audio visualization objects for Max which includes an oscilloscope,
     a spectroscope, a 3D spectroscope, smart meters, and maybe more
 */
@@ -23,6 +25,13 @@ typedef struct _spectro
 	t_jrgba u_outline;
 	t_jrgba u_background;
     t_jrgba u_samples;
+    t_jrgba u_text;
+    int u_fontSize;
+    long u_ampOn;
+    
+    t_jtextlayout	*mytxt;
+    t_jfont	*myfont;
+    t_jrgba textcolor;
     
     double u_bordersize;
     double u_linewidth;
@@ -32,6 +41,9 @@ typedef struct _spectro
     long u_binBit;
     long u_logX;
     long u_logY;
+    
+    double binAmplitude;
+    char *u_binAmp;
     
     long		f_inverse;
     long		f_fftsize;		// size
@@ -57,16 +69,18 @@ void spectro_free(t_spectro *x);
 void spectro_assist(t_spectro *x, void *b, long m, long a, char *s);
 void spectro_paint(t_spectro *x, t_object *patcherview);
 void spectro_getdrawparams(t_spectro *x, t_object *patcherview, t_jboxdrawparams *params);
+void spectro_mousemove(t_spectro *x, t_object *patcherview, t_pt pt, long modifiers);
 void spectro_setphase(t_spectro *x, long phase);
 void spectro_realimag_perform64(t_spectro *x, t_object *dsp64, double **ins, long numins, double **outs, long numouts, long sampleframes, long flags, void *userparam);
 void spectro_dsp64(t_spectro *x, t_object *dsp64, short *count, double samplerate, long maxvectorsize, long flags);
 static float log_to_lin(float val, float imin, float imax, float omin, float omax);
-static float lin_to_log(float val, float imin, float imax, float omin, float omax);
 
 static t_class *s_spectro_class;
 
+t_symbol *ps_mousemove;
 static t_symbol	*ps_fft;
 static t_symbol	*ps_ifft;
+
 
 void ext_main(void *r)
 {
@@ -80,10 +94,12 @@ void ext_main(void *r)
 
 	class_addmethod(c, (method)spectro_paint,		"paint",	A_CANT, 0);
 	class_addmethod(c, (method)spectro_assist,		"assist",	A_CANT, 0);
+    class_addmethod(c, (method)spectro_mousemove,   "mousemove", A_CANT, 0); // like bidle
     class_addmethod(c, (method)spectro_dsp64,		"dsp64", A_CANT, 0);
+    
+    ps_mousemove = gensym("mousemove");
 
-    
-    
+
 	// attributes
 	CLASS_STICKY_ATTR(c, "category", 0, "Color");
     
@@ -96,13 +112,15 @@ void ext_main(void *r)
     CLASS_ATTR_BASIC(c, "samplecolor", 0);
     CLASS_ATTR_DEFAULTNAME_SAVE_PAINT(c, "samplecolor", 0, "0. 0. 255. 1.");
     CLASS_ATTR_STYLE_LABEL(c,"samplecolor",0,"rgba","Sample Color");
-
+    
 	CLASS_ATTR_RGBA(c, "bordercolor", 0, t_spectro, u_outline);
     CLASS_ATTR_BASIC(c, "bordercolor", 0);
 	CLASS_ATTR_DEFAULTNAME_SAVE_PAINT(c, "bordercolor", 0, "0. 0. 0. 1.");
 	CLASS_ATTR_STYLE_LABEL(c,"bordercolor",0,"rgba","Border Color");
 
 	CLASS_STICKY_ATTR_CLEAR(c, "category");
+    
+    /****************************************/
     
     CLASS_STICKY_ATTR(c, "category", 0, "Dimensions");
     
@@ -117,6 +135,29 @@ void ext_main(void *r)
     CLASS_ATTR_STYLE_LABEL(c, "linewidth", 0, "double", "Line Width");
     
     CLASS_STICKY_ATTR_CLEAR(c, "category");
+    
+    /****************************************/
+    
+    CLASS_STICKY_ATTR(c, "category", 0, "Bin-Amplitude");
+    
+    CLASS_ATTR_LONG(c, "binamp", 0, t_spectro, u_ampOn);
+    CLASS_ATTR_BASIC(c, "binamp", 0);
+    CLASS_ATTR_STYLE_LABEL(c, "binamp", 0, "onoff", "Show Bin Amplitude");
+    CLASS_ATTR_SAVE(c, "binamp", 0);
+    
+    CLASS_ATTR_RGBA(c, "textcolor", 0, t_spectro, u_text);
+    CLASS_ATTR_BASIC(c, "textcolor", 0);
+    CLASS_ATTR_DEFAULTNAME_SAVE_PAINT(c, "textcolor", 0, "0. 0. 255. 1.");
+    CLASS_ATTR_STYLE_LABEL(c,"textcolor",0,"rgba","Text Color");
+    
+    CLASS_ATTR_INT32(c, "fontsize", 0, t_spectro, u_fontSize);
+    CLASS_ATTR_BASIC(c, "fontsize", 0);
+    CLASS_ATTR_DEFAULTNAME(c, "fontsize", 0, "12");
+    CLASS_ATTR_STYLE_LABEL(c,"fontsize",0,"int","Font Size");
+
+    CLASS_STICKY_ATTR_CLEAR(c, "category");
+
+    /****************************************/
     
     CLASS_STICKY_ATTR(c, "category", 0, "FFT");
     
@@ -138,7 +179,6 @@ void ext_main(void *r)
     CLASS_ATTR_ENUMINDEX2(c, "interpY", 0, "Linear", "Logarithmic");
     CLASS_ATTR_BASIC(c, "interpY", 0);
     
-    
     CLASS_STICKY_ATTR_CLEAR(c, "category");
 
 	CLASS_ATTR_DEFAULT(c,"patching_rect",0, "0. 0. 450. 200.");
@@ -158,8 +198,8 @@ void spectro_paint(t_spectro *x, t_object *patcherview)
 	t_rect rect;
 	t_jgraphics *g = (t_jgraphics *) patcherview_get_jgraphics(patcherview);		// obtain graphics context
     t_jgraphics *h = (t_jgraphics *) patcherview_get_jgraphics(patcherview);
+    t_jgraphics *t = (t_jgraphics *) patcherview_get_jgraphics(patcherview);
 	jbox_get_rect_for_view((t_object *)x, patcherview, &rect);
-
 
 	// paint border
 	jgraphics_set_source_jrgba(g, &x->u_outline);
@@ -170,6 +210,7 @@ void spectro_paint(t_spectro *x, t_object *patcherview)
                         rect.height - x->u_bordersize);
     
 	jgraphics_stroke(g);
+
     
     //paint background
     jgraphics_set_source_jrgba(g, &x->u_background);
@@ -180,10 +221,9 @@ void spectro_paint(t_spectro *x, t_object *patcherview)
     
     jgraphics_fill(g);
     
-    
 	// paint samples
-    jgraphics_set_line_width(h, x->u_linewidth);
     jgraphics_set_source_jrgba(h, &x->u_samples);
+    jgraphics_set_line_width(h, x->u_linewidth);
     
     
     //prep dimensions for waveform drawing
@@ -235,6 +275,35 @@ void spectro_paint(t_spectro *x, t_object *patcherview)
         }
     }
     
+    //paint bin amp text
+    if(x->u_ampOn){
+        t_jtextlayout	*mytxt;
+        t_jfont	*myfont;
+    
+        object_attr_getjrgba((t_object *)x, _sym_textcolor, &x->u_text);
+    
+        mytxt = jtextlayout_create();
+        myfont = jfont_create(systemfontname(), JGRAPHICS_FONT_SLANT_NORMAL, JGRAPHICS_FONT_WEIGHT_NORMAL, 11.0);
+        jfont_set_font_size(myfont, x->u_fontSize);
+        jtextlayout_set(mytxt,
+                        x->u_binAmp,
+                        myfont,
+                        -4, -(x->u_gridheight / 2) + 12,
+                        rect.width,
+                        rect.height,
+                        JGRAPHICS_TEXT_JUSTIFICATION_RIGHT,
+                        JGRAPHICS_TEXTLAYOUT_NOWRAP);
+        
+        jtextlayout_settextcolor(mytxt, &x->u_text);
+        jtextlayout_draw(mytxt, t);
+    
+        jtextlayout_destroy(mytxt);
+        jfont_destroy(myfont);
+        
+        jgraphics_stroke(t);
+    }
+    
+    //paint samples
     jgraphics_set_line_width(h, x->u_linewidth);
     jgraphics_stroke(h);
 }
@@ -310,6 +379,16 @@ void *spectro_new(t_symbol *s, long argc, t_atom *argv)
 	return x;
 }
 
+void spectro_mousemove(t_spectro *x, t_object *patcherview, t_pt pt, long modifiers)
+{
+    free(x->u_binAmp);
+    unsigned long mouseOverBin = (pt.x / x->u_gridwidth) * x->f_fftsize;
+    x->binAmplitude = (sqrt(pow(x->f_imagout[mouseOverBin], 2) + pow(x->f_realout[mouseOverBin], 2)));
+    x->binAmplitude = ((log_to_lin(x->binAmplitude, -1., 1., 0., x->u_gridheight) - (x->u_gridheight * 0.90)) / x->u_gridheight) - 0.024754;
+    asprintf(&x->u_binAmp, "Bin #%lu: %f", mouseOverBin, x->binAmplitude);
+    jbox_redraw((t_jbox *)x);
+}
+
 void spectro_setphase(t_spectro *x, long phase)
 {
     x->f_phase = phase;
@@ -323,14 +402,6 @@ static float log_to_lin(float val, float imin, float imax, float omin, float oma
     }
     return ((((log(logterm) / 9.21034f + 1.f) / 1.000011f) * (omax - omin)) + omin);
     
-}
-
-static float lin_to_log(float val, float imin, float imax, float omin, float omax)
-{
-    if ((val - imin) == 0 || (imax - imin) == 0) {
-        return omin;
-    }
-    return (((exp(((val - imin) / (imax - imin) * 1.000011 - 1.) * 9.21034) - 0.0001) * (omax - omin)) + omin);
 }
 
 void spectro_dsp64(t_spectro *x, t_object *dsp64, short *count, double samplerate, long maxvectorsize, long flags)
@@ -382,6 +453,8 @@ void spectro_dsp64(t_spectro *x, t_object *dsp64, short *count, double samplerat
 
 }
 
+
+//FFT code borrowed from the fft~ object
 void spectro_realimag_perform64(t_spectro *x, t_object *dsp64, double **ins, long numins, double **outs, long numouts, long sampleframes, long flags, void *userparam) // based on fft_complex_perform()
 {
     //check if bin argument changed
