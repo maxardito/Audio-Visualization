@@ -244,7 +244,7 @@ void spectro_paint(t_spectro *x, t_object *patcherview)
         }
         
     } else {
-        
+
         //number of bins below nyquist
         int numberOfBins = (int) (x->f_fftsize / 2);
         double sample[numberOfBins];
@@ -382,9 +382,22 @@ void *spectro_new(t_symbol *s, long argc, t_atom *argv)
 void spectro_mousemove(t_spectro *x, t_object *patcherview, t_pt pt, long modifiers)
 {
     free(x->u_binAmp);
-    unsigned long mouseOverBin = (pt.x / x->u_gridwidth) * x->f_fftsize;
-    x->binAmplitude = (sqrt(pow(x->f_imagout[mouseOverBin], 2) + pow(x->f_realout[mouseOverBin], 2)));
-    x->binAmplitude = ((log_to_lin(x->binAmplitude, -1., 1., 0., x->u_gridheight) - (x->u_gridheight * 0.90)) / x->u_gridheight) - 0.024754;
+    unsigned long mouseOverBin;
+    
+    if(x->u_logX){
+        mouseOverBin = log_to_lin((pt.x / x->u_gridwidth) * (x->f_fftsize), 0, 22000, 0, x->u_gridwidth);
+    } else {
+        mouseOverBin = (pt.x / x->u_gridwidth) * (x->f_fftsize);
+    }
+    
+    if(x->u_logY){
+        x->binAmplitude = (sqrt(pow(x->f_imagout[mouseOverBin], 2) + pow(x->f_realout[mouseOverBin], 2)));
+        x->binAmplitude = (((log_to_lin(x->binAmplitude, -1., 1., 0., x->u_gridheight) - (x->u_gridheight)) / x->u_gridheight) + 0.075246) * 1.6;
+    } else {
+        //different scaling...
+        x->binAmplitude = (sqrt(pow(x->f_imagout[mouseOverBin], 2) + pow(x->f_realout[mouseOverBin], 2)));
+    }
+    
     asprintf(&x->u_binAmp, "Bin #%lu: %f", mouseOverBin, x->binAmplitude);
     jbox_redraw((t_jbox *)x);
 }
