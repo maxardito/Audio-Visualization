@@ -289,15 +289,19 @@ void spectro_paint(t_spectro *x, t_object *patcherview)
         }
     }
     
+    //paint samples
+    jgraphics_set_line_width(h, x->u_linewidth);
+    jgraphics_stroke(h);
+    
     //paint bin amp text
     if(x->u_ampOn){
         
         //paint text
         t_jtextlayout	*mytxt;
         t_jfont	*myfont;
-    
+        
         object_attr_getjrgba((t_object *)x, _sym_textcolor, &x->u_text);
-    
+        
         mytxt = jtextlayout_create();
         myfont = jfont_create(systemfontname(), JGRAPHICS_FONT_SLANT_NORMAL, JGRAPHICS_FONT_WEIGHT_NORMAL, 11.0);
         jfont_set_font_size(myfont, x->u_fontSize);
@@ -312,7 +316,7 @@ void spectro_paint(t_spectro *x, t_object *patcherview)
         
         jtextlayout_settextcolor(mytxt, &x->u_text);
         jtextlayout_draw(mytxt, t);
-    
+        
         jtextlayout_destroy(mytxt);
         jfont_destroy(myfont);
         
@@ -326,10 +330,6 @@ void spectro_paint(t_spectro *x, t_object *patcherview)
         jgraphics_stroke(t);
         jgraphics_stroke(l);
     }
-    
-    //paint samples
-    jgraphics_set_line_width(h, x->u_linewidth);
-    jgraphics_stroke(h);
 }
 
 
@@ -405,30 +405,39 @@ void *spectro_new(t_symbol *s, long argc, t_atom *argv)
 
 void spectro_mousemove(t_spectro *x, t_object *patcherview, t_pt pt, long modifiers)
 {
-    free(x->u_binAmp);
-    unsigned long mouseOverBin;
-    
     //variable for vertical line
-     x->u_mouseX = pt.x;
+    x->u_mouseX = pt.x;
     
+    //free char array
+    free(x->u_binAmp);
+    
+    typedef struct bin{
+        unsigned long number;
+        int rangeLo;
+        int rangeHi;
+    } t_bin;
+    
+    t_bin bins;
     
     if(x->u_logX){
-        mouseOverBin = log_to_lin((pt.x / x->u_gridwidth) * (x->f_fftsize), 0, 22000, 0, x->u_gridwidth);
+        bins.number = log_to_lin((pt.x / x->u_gridwidth) * (x->f_fftsize), 0, 22000, 0, x->u_gridwidth);
     } else {
-        mouseOverBin = (pt.x / x->u_gridwidth) * (x->f_fftsize);
+        bins.number = (pt.x / x->u_gridwidth) * (x->f_fftsize);
     }
     
     if(x->u_logY){
-        x->binAmplitude = (sqrt(pow(x->f_imagout[mouseOverBin], 2) + pow(x->f_realout[mouseOverBin], 2)));
+        x->binAmplitude = (sqrt(pow(x->f_imagout[bins.number], 2) + pow(x->f_realout[bins.number], 2)));
         x->binAmplitude = (((log_to_lin(x->binAmplitude, -1., 1., 0., x->u_gridheight) - (x->u_gridheight)) / x->u_gridheight) + 0.075246) * 1.6;
     } else {
         //different scaling...
-        x->binAmplitude = (sqrt(pow(x->f_imagout[mouseOverBin], 2) + pow(x->f_realout[mouseOverBin], 2)));
+        x->binAmplitude = (sqrt(pow(x->f_imagout[bins.number], 2) + pow(x->f_realout[bins.number], 2)));
     }
     
+    bins.rangeLo = (22000 / x->f_fftsize) * (int) bins.number;
+    bins.rangeHi = (22000 / x->f_fftsize) * (int) (bins.number + 1);
     
     
-    asprintf(&x->u_binAmp, "Bin #%lu: %f", mouseOverBin, x->binAmplitude);
+    asprintf(&x->u_binAmp, "%iHz - %iHz: %f", bins.rangeLo, bins.rangeHi, x->binAmplitude);
     jbox_redraw((t_jbox *)x);
 }
 
