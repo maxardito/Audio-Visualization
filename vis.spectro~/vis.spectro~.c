@@ -26,12 +26,15 @@ typedef struct _spectro
 	t_jrgba u_background;
     t_jrgba u_samples;
     t_jrgba u_text;
+    t_jrgba u_verticalLine;
     int u_fontSize;
     long u_ampOn;
     
     t_jtextlayout	*mytxt;
     t_jfont	*myfont;
     t_jrgba textcolor;
+    
+    unsigned long u_mouseX;
     
     double u_bordersize;
     double u_linewidth;
@@ -74,6 +77,7 @@ void spectro_setphase(t_spectro *x, long phase);
 void spectro_realimag_perform64(t_spectro *x, t_object *dsp64, double **ins, long numins, double **outs, long numouts, long sampleframes, long flags, void *userparam);
 void spectro_dsp64(t_spectro *x, t_object *dsp64, short *count, double samplerate, long maxvectorsize, long flags);
 static float log_to_lin(float val, float imin, float imax, float omin, float omax);
+
 
 static t_class *s_spectro_class;
 
@@ -150,6 +154,11 @@ void ext_main(void *r)
     CLASS_ATTR_DEFAULTNAME_SAVE_PAINT(c, "textcolor", 0, "0. 0. 255. 1.");
     CLASS_ATTR_STYLE_LABEL(c,"textcolor",0,"rgba","Text Color");
     
+    CLASS_ATTR_RGBA(c, "linecolor", 0, t_spectro, u_verticalLine);
+    CLASS_ATTR_BASIC(c, "linecolor", 0);
+    CLASS_ATTR_DEFAULTNAME_SAVE_PAINT(c, "linecolor", 0, "0. 0. 255. 1.");
+    CLASS_ATTR_STYLE_LABEL(c,"linecolor",0,"rgba","Vertical Line Color");
+    
     CLASS_ATTR_INT32(c, "fontsize", 0, t_spectro, u_fontSize);
     CLASS_ATTR_BASIC(c, "fontsize", 0);
     CLASS_ATTR_DEFAULTNAME(c, "fontsize", 0, "12");
@@ -199,6 +208,7 @@ void spectro_paint(t_spectro *x, t_object *patcherview)
 	t_jgraphics *g = (t_jgraphics *) patcherview_get_jgraphics(patcherview);		// obtain graphics context
     t_jgraphics *h = (t_jgraphics *) patcherview_get_jgraphics(patcherview);
     t_jgraphics *t = (t_jgraphics *) patcherview_get_jgraphics(patcherview);
+    t_jgraphics *l = (t_jgraphics *) patcherview_get_jgraphics(patcherview);
 	jbox_get_rect_for_view((t_object *)x, patcherview, &rect);
 
 	// paint border
@@ -221,7 +231,7 @@ void spectro_paint(t_spectro *x, t_object *patcherview)
     
     jgraphics_fill(g);
     
-	// paint samples
+	//paint samples
     jgraphics_set_source_jrgba(h, &x->u_samples);
     jgraphics_set_line_width(h, x->u_linewidth);
     
@@ -243,12 +253,16 @@ void spectro_paint(t_spectro *x, t_object *patcherview)
             }
         }
         
+        x->u_ampOn = 0;
+        
     } else {
 
         //number of bins below nyquist
         int numberOfBins = (int) (x->f_fftsize / 2);
         double sample[numberOfBins];
         float px;
+        
+        x->u_ampOn = 1;
         
         //draw spectroscope
         for(int i = 0; i < numberOfBins; i++){
@@ -277,6 +291,8 @@ void spectro_paint(t_spectro *x, t_object *patcherview)
     
     //paint bin amp text
     if(x->u_ampOn){
+        
+        //paint text
         t_jtextlayout	*mytxt;
         t_jfont	*myfont;
     
@@ -300,7 +316,15 @@ void spectro_paint(t_spectro *x, t_object *patcherview)
         jtextlayout_destroy(mytxt);
         jfont_destroy(myfont);
         
+        //paint line
+        jgraphics_set_source_jrgba(l, &x->u_verticalLine);
+        jgraphics_set_line_width(l, 1);
+        
+        jgraphics_move_to(l, x->u_mouseX, x->u_bordersize / 2);
+        jgraphics_line_to(l, x->u_mouseX, x->u_gridheight - (x->u_bordersize / 2));
+        
         jgraphics_stroke(t);
+        jgraphics_stroke(l);
     }
     
     //paint samples
@@ -384,6 +408,10 @@ void spectro_mousemove(t_spectro *x, t_object *patcherview, t_pt pt, long modifi
     free(x->u_binAmp);
     unsigned long mouseOverBin;
     
+    //variable for vertical line
+     x->u_mouseX = pt.x;
+    
+    
     if(x->u_logX){
         mouseOverBin = log_to_lin((pt.x / x->u_gridwidth) * (x->f_fftsize), 0, 22000, 0, x->u_gridwidth);
     } else {
@@ -397,6 +425,8 @@ void spectro_mousemove(t_spectro *x, t_object *patcherview, t_pt pt, long modifi
         //different scaling...
         x->binAmplitude = (sqrt(pow(x->f_imagout[mouseOverBin], 2) + pow(x->f_realout[mouseOverBin], 2)));
     }
+    
+    
     
     asprintf(&x->u_binAmp, "Bin #%lu: %f", mouseOverBin, x->binAmplitude);
     jbox_redraw((t_jbox *)x);
