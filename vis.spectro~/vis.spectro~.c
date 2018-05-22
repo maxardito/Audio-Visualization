@@ -73,14 +73,16 @@ void spectro_assist(t_spectro *x, void *b, long m, long a, char *s);
 void spectro_paint(t_spectro *x, t_object *patcherview);
 void spectro_getdrawparams(t_spectro *x, t_object *patcherview, t_jboxdrawparams *params);
 void spectro_mousemove(t_spectro *x, t_object *patcherview, t_pt pt, long modifiers);
+void spectro_mouseleave(t_spectro *x, t_object *patcherview, t_pt pt, long modifiers);
 void spectro_setphase(t_spectro *x, long phase);
 void spectro_realimag_perform64(t_spectro *x, t_object *dsp64, double **ins, long numins, double **outs, long numouts, long sampleframes, long flags, void *userparam);
 void spectro_dsp64(t_spectro *x, t_object *dsp64, short *count, double samplerate, long maxvectorsize, long flags);
 static float log_to_lin(float val, float imin, float imax, float omin, float omax);
 static float lin_to_log(float val, float imin, float imax, float omin, float omax);
+static float lin_to_lin(float val, float imin, float imax, float omin, float omax);
 double fftAmp(int index, t_spectro *x);
-double linToLogAmp(double sample, t_spectro *x);
-double logToLindb(double sample, t_spectro *x);
+double toAmp(double sample, t_spectro *x);
+double todB(double sample, t_spectro *x);
 
 
 
@@ -199,6 +201,7 @@ void ext_main(void *r)
 
 	class_register(CLASS_BOX, c);
 	s_spectro_class = c;
+
 }
 
 void spectro_assist(t_spectro *x, void *b, long m, long a, char *s)
@@ -287,8 +290,15 @@ void spectro_paint(t_spectro *x, t_object *patcherview)
             
             sample[i] = fftAmp(i, x);
             
-            //draws amplitude range * u_gridheight scaling
-            sample[i] = linToLogAmp(sample[i], x) * x->u_gridheight;
+            //draws amplitude range
+            if(x->u_logY){
+                sample[i] = todB(sample[i], x);
+                //scale to gridheight
+                sample[i] = lin_to_lin(sample[i], -70, 6, 0, x->u_gridheight);
+                
+            } else {
+                sample[i] = toAmp(sample[i], x) * x->u_gridheight;
+            }
             
             if(i == 0){
                 jgraphics_move_to(h, x->u_bordersize / 2, x->u_gridheight - (x->u_bordersize / 2) - sample[i]);
@@ -417,7 +427,7 @@ double fftAmp(int index, t_spectro *x)
     return (sqrt((x->f_imagout[index] * x->f_imagout[index]) + (x->f_realout[index] * x->f_realout[index])));
 }
 
-double linToLogAmp(double sample, t_spectro *x)
+double toAmp(double sample, t_spectro *x)
 {
     float mult = 1.0 / (x->f_fftsize/PI);
     if(sample > 0){
@@ -426,7 +436,8 @@ double linToLogAmp(double sample, t_spectro *x)
     return sample;
 }
 
-double logToLindb(double sample, t_spectro *x){
+double todB(double sample, t_spectro *x)
+{
     float mult = 1.0 / (x->f_fftsize/PI);
     if(sample > 0){
         sample *= mult;
@@ -437,7 +448,7 @@ double logToLindb(double sample, t_spectro *x){
 
 void spectro_mousemove(t_spectro *x, t_object *patcherview, t_pt pt, long modifiers)
 {
-    //variable for vertical line
+    //variable for vertical linem
     x->u_mouseX = pt.x;
     
     //free char array
@@ -465,16 +476,16 @@ void spectro_mousemove(t_spectro *x, t_object *patcherview, t_pt pt, long modifi
     x->binAmplitude = fftAmp(bins.number, x);
 
     if(x->u_logY){
-        x->binAmplitude = linToLogAmp(x->binAmplitude, x);
-        asprintf(&x->u_binAmp, "%iHz: %f", bins.freq, x->binAmplitude);
-    } else {
-        x->binAmplitude = logToLindb(x->binAmplitude, x);
+        x->binAmplitude = todB(x->binAmplitude, x);
         asprintf(&x->u_binAmp, "%iHz: %fdB", bins.freq, x->binAmplitude);
+    } else {
+        x->binAmplitude = toAmp(x->binAmplitude, x);
+        asprintf(&x->u_binAmp, "%iHz: %f", bins.freq, x->binAmplitude);
     }
     
     jbox_redraw((t_jbox *)x);
+    
 }
-
 
 void spectro_setphase(t_spectro *x, long phase)
 {
@@ -498,6 +509,16 @@ static float lin_to_log(float val, float imin, float imax, float omin, float oma
     }
     return (((exp(((val - imin) / (imax - imin) * 1.000011 - 1.) * 9.21034) - 0.0001) * (omax - omin)) + omin);
 }
+
+
+static float lin_to_lin(float val, float imin, float imax, float omin, float omax)
+{
+    if (val == 0 || imax == 0) {
+        return 0;
+    }
+    return ((((val - imin) / (imax - imin)) * (omax - omin) + omin));
+}
+                              
 
 void spectro_dsp64(t_spectro *x, t_object *dsp64, short *count, double samplerate, long maxvectorsize, long flags)
 {
