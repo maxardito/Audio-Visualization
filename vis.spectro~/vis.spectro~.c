@@ -77,6 +77,11 @@ void spectro_setphase(t_spectro *x, long phase);
 void spectro_realimag_perform64(t_spectro *x, t_object *dsp64, double **ins, long numins, double **outs, long numouts, long sampleframes, long flags, void *userparam);
 void spectro_dsp64(t_spectro *x, t_object *dsp64, short *count, double samplerate, long maxvectorsize, long flags);
 static float log_to_lin(float val, float imin, float imax, float omin, float omax);
+static float lin_to_log(float val, float imin, float imax, float omin, float omax);
+double fftAmp(int index, t_spectro *x);
+double linToLogAmp(double sample, t_spectro *x);
+double logToLindb(double sample, t_spectro *x);
+
 
 
 static t_class *s_spectro_class;
@@ -205,9 +210,14 @@ void spectro_assist(t_spectro *x, void *b, long m, long a, char *s)
 void spectro_paint(t_spectro *x, t_object *patcherview)
 {
 	t_rect rect;
-	t_jgraphics *g = (t_jgraphics *) patcherview_get_jgraphics(patcherview);		// obtain graphics context
+    
+    //*g: background
+	t_jgraphics *g = (t_jgraphics *) patcherview_get_jgraphics(patcherview);
+    //*h: samples
     t_jgraphics *h = (t_jgraphics *) patcherview_get_jgraphics(patcherview);
+    //*t freq text
     t_jgraphics *t = (t_jgraphics *) patcherview_get_jgraphics(patcherview);
+    //*l cursor line
     t_jgraphics *l = (t_jgraphics *) patcherview_get_jgraphics(patcherview);
 	jbox_get_rect_for_view((t_object *)x, patcherview, &rect);
 
@@ -260,7 +270,7 @@ void spectro_paint(t_spectro *x, t_object *patcherview)
         //number of bins below nyquist
         int numberOfBins = (int) (x->f_fftsize / 2);
         double sample[numberOfBins];
-        float px;
+        float range;
         
         x->u_ampOn = 1;
         
@@ -269,22 +279,21 @@ void spectro_paint(t_spectro *x, t_object *patcherview)
             
             //scale samples to current gridwidth
             if(x->u_logX){
-                px = ((float) i / numberOfBins) * 22000;
-                px = log_to_lin(px, 0, 22000, 0, x->u_gridwidth);
+                range = ((float) i / numberOfBins) * 22000;
+                range = log_to_lin(range, 0, 22000, 0, x->u_gridwidth);
             } else {
-                px = ((float) i / numberOfBins) * x->u_gridwidth;
+                range = ((float) i / numberOfBins) * x->u_gridwidth;
             }
             
-            sample[i] = (sqrt(pow(x->f_imagout[i], 2) + pow(x->f_realout[i], 2)));
-            if(x->u_logY){
-                //interpolate samples
-                sample[i] = log_to_lin(sample[i], -1., 1., 0., x->u_gridheight) - (x->u_gridheight * 0.90);
-            }
+            sample[i] = fftAmp(i, x);
+            
+            //draws amplitude range * u_gridheight scaling
+            sample[i] = linToLogAmp(sample[i], x) * x->u_gridheight;
             
             if(i == 0){
                 jgraphics_move_to(h, x->u_bordersize / 2, x->u_gridheight - (x->u_bordersize / 2) - sample[i]);
             } else {
-                jgraphics_line_to(h, (float) px + (x->u_bordersize / 2), x->u_gridheight - sample[i]);
+                jgraphics_line_to(h, (float) range + (x->u_bordersize / 2), x->u_gridheight - sample[i]);
             }
         }
     }
@@ -403,6 +412,29 @@ void *spectro_new(t_symbol *s, long argc, t_atom *argv)
 	return x;
 }
 
+double fftAmp(int index, t_spectro *x)
+{
+    return (sqrt((x->f_imagout[index] * x->f_imagout[index]) + (x->f_realout[index] * x->f_realout[index])));
+}
+
+double linToLogAmp(double sample, t_spectro *x)
+{
+    float mult = 1.0 / (x->f_fftsize/PI);
+    if(sample > 0){
+        sample *= mult;
+    }
+    return sample;
+}
+
+double logToLindb(double sample, t_spectro *x){
+    float mult = 1.0 / (x->f_fftsize/PI);
+    if(sample > 0){
+        sample *= mult;
+        sample = (20 * log10(sample));
+    }
+    return sample;
+}
+
 void spectro_mousemove(t_spectro *x, t_object *patcherview, t_pt pt, long modifiers)
 {
     //variable for vertical line
@@ -412,34 +444,37 @@ void spectro_mousemove(t_spectro *x, t_object *patcherview, t_pt pt, long modifi
     free(x->u_binAmp);
     
     typedef struct bin{
-        unsigned long number;
-        int rangeLo;
-        int rangeHi;
+        unsigned int number;
+        int freq;
     } t_bin;
     
     t_bin bins;
     
+    float range = (pt.x / x->u_gridwidth);
+    
+    //x->f_fftsize / 2 because of nyquist mirroring
     if(x->u_logX){
-        bins.number = log_to_lin((pt.x / x->u_gridwidth) * (x->f_fftsize), 0, 22000, 0, x->u_gridwidth);
+        range = lin_to_log(range, 0, 1.0, 0, 1.0);
+        bins.number = range * (x->f_fftsize / 2);
+        bins.freq = (22000 / (x->f_fftsize / 2)) * (int) bins.number;
     } else {
-        bins.number = (pt.x / x->u_gridwidth) * (x->f_fftsize);
+        bins.number = (pt.x / x->u_gridwidth) * (x->f_fftsize / 2);
+        bins.freq = (22000 / (x->f_fftsize / 2)) * (int) bins.number;
     }
     
+    x->binAmplitude = fftAmp(bins.number, x);
+
     if(x->u_logY){
-        x->binAmplitude = (sqrt(pow(x->f_imagout[bins.number], 2) + pow(x->f_realout[bins.number], 2)));
-        x->binAmplitude = (((log_to_lin(x->binAmplitude, -1., 1., 0., x->u_gridheight) - (x->u_gridheight)) / x->u_gridheight) + 0.075246) * 1.6;
+        x->binAmplitude = linToLogAmp(x->binAmplitude, x);
+        asprintf(&x->u_binAmp, "%iHz: %f", bins.freq, x->binAmplitude);
     } else {
-        //different scaling...
-        x->binAmplitude = (sqrt(pow(x->f_imagout[bins.number], 2) + pow(x->f_realout[bins.number], 2)));
+        x->binAmplitude = logToLindb(x->binAmplitude, x);
+        asprintf(&x->u_binAmp, "%iHz: %fdB", bins.freq, x->binAmplitude);
     }
     
-    bins.rangeLo = (22000 / x->f_fftsize) * (int) bins.number;
-    bins.rangeHi = (22000 / x->f_fftsize) * (int) (bins.number + 1);
-    
-    
-    asprintf(&x->u_binAmp, "%iHz - %iHz: %f", bins.rangeLo, bins.rangeHi, x->binAmplitude);
     jbox_redraw((t_jbox *)x);
 }
+
 
 void spectro_setphase(t_spectro *x, long phase)
 {
@@ -454,6 +489,14 @@ static float log_to_lin(float val, float imin, float imax, float omin, float oma
     }
     return ((((log(logterm) / 9.21034f + 1.f) / 1.000011f) * (omax - omin)) + omin);
     
+}
+
+static float lin_to_log(float val, float imin, float imax, float omin, float omax)
+{
+    if ((val - imin) == 0 || (imax - imin) == 0) {
+        return omin;
+    }
+    return (((exp(((val - imin) / (imax - imin) * 1.000011 - 1.) * 9.21034) - 0.0001) * (omax - omin)) + omin);
 }
 
 void spectro_dsp64(t_spectro *x, t_object *dsp64, short *count, double samplerate, long maxvectorsize, long flags)
