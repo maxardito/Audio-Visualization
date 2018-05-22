@@ -35,6 +35,7 @@ typedef struct _spectro
     t_jrgba textcolor;
     
     unsigned long u_mouseX;
+    bool u_mouseover;
     
     double u_bordersize;
     double u_linewidth;
@@ -73,6 +74,7 @@ void spectro_assist(t_spectro *x, void *b, long m, long a, char *s);
 void spectro_paint(t_spectro *x, t_object *patcherview);
 void spectro_getdrawparams(t_spectro *x, t_object *patcherview, t_jboxdrawparams *params);
 void spectro_mousemove(t_spectro *x, t_object *patcherview, t_pt pt, long modifiers);
+void spectro_mouseenter(t_spectro *x, t_object *patcherview, t_pt pt, long modifiers);
 void spectro_mouseleave(t_spectro *x, t_object *patcherview, t_pt pt, long modifiers);
 void spectro_setphase(t_spectro *x, long phase);
 void spectro_realimag_perform64(t_spectro *x, t_object *dsp64, double **ins, long numins, double **outs, long numouts, long sampleframes, long flags, void *userparam);
@@ -107,6 +109,9 @@ void ext_main(void *r)
 	class_addmethod(c, (method)spectro_assist,		"assist",	A_CANT, 0);
     class_addmethod(c, (method)spectro_mousemove,   "mousemove", A_CANT, 0); // like bidle
     class_addmethod(c, (method)spectro_dsp64,		"dsp64", A_CANT, 0);
+    class_addmethod(c, (method)spectro_mouseleave,   "mouseleave",   A_CANT, 0);
+    class_addmethod(c, (method)spectro_mouseenter,   "mouseenter",   A_CANT, 0);
+
     
     ps_mousemove = gensym("mousemove");
 
@@ -313,7 +318,7 @@ void spectro_paint(t_spectro *x, t_object *patcherview)
     jgraphics_stroke(h);
     
     //paint bin amp text
-    if(x->u_ampOn){
+    if(x->u_ampOn && x->u_mouseover == true){
         
         //paint text
         t_jtextlayout	*mytxt;
@@ -444,6 +449,18 @@ double todB(double sample, t_spectro *x)
         sample = (20 * log10(sample));
     }
     return sample;
+}
+
+void spectro_mouseenter(t_spectro *x, t_object *patcherview, t_pt pt, long modifiers)
+{
+    x->u_mouseover = true;
+    jbox_redraw((t_jbox *)x);
+}
+
+void spectro_mouseleave(t_spectro *x, t_object *patcherview, t_pt pt, long modifiers)
+{
+    x->u_mouseover = false;
+    jbox_redraw((t_jbox *)x);
 }
 
 void spectro_mousemove(t_spectro *x, t_object *patcherview, t_pt pt, long modifiers)
