@@ -48,6 +48,7 @@ typedef struct _spectro
     
     double binAmplitude;
     char *u_binAmp;
+    float u_fftResolution;
     
     long		f_inverse;
     long		f_fftsize;		// size
@@ -147,7 +148,7 @@ void ext_main(void *r)
     
     CLASS_ATTR_DOUBLE(c, "linewidth", 0, t_spectro, u_linewidth);
     CLASS_ATTR_BASIC(c, "linewidth", 0);
-    CLASS_ATTR_DEFAULTNAME(c, "linewidth", 0, "3.");
+    CLASS_ATTR_DEFAULTNAME(c, "linewidth", 0, "1.");
     CLASS_ATTR_STYLE_LABEL(c, "linewidth", 0, "double", "Line Width");
     
     CLASS_STICKY_ATTR_CLEAR(c, "category");
@@ -287,8 +288,8 @@ void spectro_paint(t_spectro *x, t_object *patcherview)
             
             //scale samples to current gridwidth
             if(x->u_logX){
-                range = ((float) i / numberOfBins) * 22000;
-                range = log_to_lin(range, 0, 22000, 0, x->u_gridwidth);
+                range = ((float) i / numberOfBins) * (sys_getsr() / 2);
+                range = log_to_lin(range, 0, (sys_getsr() / 2), 0, x->u_gridwidth);
             } else {
                 range = ((float) i / numberOfBins) * x->u_gridwidth;
             }
@@ -406,6 +407,8 @@ void *spectro_new(t_symbol *s, long argc, t_atom *argv)
     x->f_countdown = 0;
     x->f_1overpts = 1. / x->f_fftsize;
     
+    x->u_fftResolution = ((sys_getsr() / 2) / (x->f_fftsize / 2));
+    
     
 	boxflags = 0
 			   | JBOX_DRAWFIRSTIN
@@ -481,20 +484,24 @@ void spectro_mousemove(t_spectro *x, t_object *patcherview, t_pt pt, long modifi
     float range = (pt.x / x->u_gridwidth);
     
     //x->f_fftsize / 2 because of nyquist mirroring
+    x->u_fftResolution = (sys_getsr() / x->f_fftsize);
+    
     if(x->u_logX){
         range = lin_to_log(range, 0, 1.0, 0, 1.0);
-        bins.number = range * (x->f_fftsize / 2);
-        bins.freq = (22000 / (x->f_fftsize / 2)) * (int) bins.number;
-    } else {
-        bins.number = (pt.x / x->u_gridwidth) * (x->f_fftsize / 2);
-        bins.freq = (22000 / (x->f_fftsize / 2)) * (int) bins.number;
     }
+    
+    bins.number = range * (x->f_fftsize / 2);
+    bins.freq = x->u_fftResolution * bins.number;
     
     x->binAmplitude = fftAmp(bins.number, x);
 
     if(x->u_logY){
-        x->binAmplitude = todB(x->binAmplitude, x);
-        asprintf(&x->u_binAmp, "%iHz: %fdB", bins.freq, x->binAmplitude);
+        if(x->binAmplitude == 0){
+            asprintf(&x->u_binAmp, "%iHz: -infdB", bins.freq);
+        } else {
+            x->binAmplitude = todB(x->binAmplitude, x);
+            asprintf(&x->u_binAmp, "%iHz: %fdB", bins.freq, x->binAmplitude);
+        }
     } else {
         x->binAmplitude = toAmp(x->binAmplitude, x);
         asprintf(&x->u_binAmp, "%iHz: %f", bins.freq, x->binAmplitude);
