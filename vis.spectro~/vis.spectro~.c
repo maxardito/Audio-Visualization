@@ -33,6 +33,7 @@ typedef struct _spectro
     t_jrgba u_samples;
     t_jrgba u_text;
     t_jrgba u_verticalLine;
+    t_jrgba u_binGrid;
     int u_fontSize;
     long u_ampOn;
     
@@ -138,6 +139,11 @@ void ext_main(void *r)
     CLASS_ATTR_BASIC(c, "bordercolor", 0);
 	CLASS_ATTR_DEFAULTNAME_SAVE_PAINT(c, "bordercolor", 0, "0. 0. 0. 1.");
 	CLASS_ATTR_STYLE_LABEL(c,"bordercolor",0,"rgba","Border Color");
+    
+    CLASS_ATTR_RGBA(c, "bingrid", 0, t_spectro, u_binGrid);
+    CLASS_ATTR_BASIC(c, "bingrid", 0);
+    CLASS_ATTR_DEFAULTNAME_SAVE_PAINT(c, "bingrid", 0, "0. 255. 0. 1.");
+    CLASS_ATTR_STYLE_LABEL(c,"bingrid",0,"rgba","Bin Grid");
 
 	CLASS_STICKY_ATTR_CLEAR(c, "category");
     
@@ -232,6 +238,11 @@ void spectro_paint(t_spectro *x, t_object *patcherview)
     t_jgraphics *t = (t_jgraphics *) patcherview_get_jgraphics(patcherview);
     //*l cursor line
     t_jgraphics *l = (t_jgraphics *) patcherview_get_jgraphics(patcherview);
+    //*b bin grid
+    t_jgraphics *b = (t_jgraphics *) patcherview_get_jgraphics(patcherview);
+    
+    
+    
 	jbox_get_rect_for_view((t_object *)x, patcherview, &rect);
 
 	// paint border
@@ -347,8 +358,6 @@ void spectro_paint(t_spectro *x, t_object *patcherview)
         bins.freq = fftResolution * bins.number;
         bins.amp = fftAmp(bins.number, x);
         
-        post("%f", range);
-        
         if(x->u_logY){
             if(bins.amp == 0){
                 asprintf(&x->u_binAmp, "%iHz: -infdB", bins.freq);
@@ -394,7 +403,18 @@ void spectro_paint(t_spectro *x, t_object *patcherview)
         
         jgraphics_stroke(t);
         jgraphics_stroke(l);
+        
     }
+
+        //paint bin lines
+        //jgraphics_set_source_jrgba(b, &x->u_binGrid);
+        //jgraphics_set_line_width(b, 1);
+        
+        //jgraphics_move_to(b, /*POSITION*/, x->u_bordersize / 2);
+        //jgraphics_line_to(b, /*POSITION*/, x->u_gridheight - (x->u_bordersize / 2));
+            
+        //jgraphics_stroke(b);
+
 }
 
 
