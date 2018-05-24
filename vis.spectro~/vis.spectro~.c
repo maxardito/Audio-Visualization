@@ -17,6 +17,12 @@
 #define FFT_MIN_BINS 128
 #define FFT_MAX_BINS 2048
 
+typedef struct bin{
+    unsigned int number;
+    int freq;
+    double amp;
+} t_bin;
+
 typedef struct _spectro
 {
     
@@ -34,7 +40,7 @@ typedef struct _spectro
     t_jfont	*myfont;
     t_jrgba textcolor;
     
-    unsigned long u_mouseX;
+    double u_mouseX;
     bool u_mouseover;
     
     double u_bordersize;
@@ -46,9 +52,7 @@ typedef struct _spectro
     long u_logX;
     long u_logY;
     
-    double binAmplitude;
     char *u_binAmp;
-    float u_fftResolution;
     
     long		f_inverse;
     long		f_fftsize;		// size
@@ -300,7 +304,11 @@ void spectro_paint(t_spectro *x, t_object *patcherview)
             if(x->u_logY){
                 sample[i] = todB(sample[i], x);
                 //scale to gridheight
-                sample[i] = lin_to_lin(sample[i], -70, 6, 0, x->u_gridheight);
+                if(sample[i] <= -70){
+                    sample[i] = 0;
+                } else {
+                    sample[i] = lin_to_lin(sample[i], -70, 6, 0, x->u_gridheight);
+                }
                 
             } else {
                 sample[i] = toAmp(sample[i], x) * x->u_gridheight;
@@ -320,6 +328,38 @@ void spectro_paint(t_spectro *x, t_object *patcherview)
     
     //paint bin amp text
     if(x->u_ampOn && x->u_mouseover == true){
+        
+        //free char array
+        free(x->u_binAmp);
+        
+        t_bin bins;
+        
+        float range = (x->u_mouseX / x->u_gridwidth);
+        
+        //x->f_fftsize / 2 because of nyquist mirroring
+        float fftResolution = (sys_getsr() / x->f_fftsize);
+        
+        if(x->u_logX){
+            range = lin_to_log(range, 0, 1.0, 0, 1.0);
+        }
+        
+        bins.number = range * (x->f_fftsize / 2);
+        bins.freq = fftResolution * bins.number;
+        bins.amp = fftAmp(bins.number, x);
+        
+        post("%f", range);
+        
+        if(x->u_logY){
+            if(bins.amp == 0){
+                asprintf(&x->u_binAmp, "%iHz: -infdB", bins.freq);
+            } else {
+                bins.amp = todB(bins.amp, x);
+                asprintf(&x->u_binAmp, "%iHz: %fdB", bins.freq, bins.amp);
+            }
+        } else {
+            bins.amp = toAmp(bins.amp, x);
+            asprintf(&x->u_binAmp, "%iHz: %f", bins.freq, bins.amp);
+        }
         
         //paint text
         t_jtextlayout	*mytxt;
@@ -407,9 +447,6 @@ void *spectro_new(t_symbol *s, long argc, t_atom *argv)
     x->f_countdown = 0;
     x->f_1overpts = 1. / x->f_fftsize;
     
-    x->u_fftResolution = ((sys_getsr() / 2) / (x->f_fftsize / 2));
-    
-    
 	boxflags = 0
 			   | JBOX_DRAWFIRSTIN
 			   | JBOX_NODRAWBOX
@@ -468,47 +505,7 @@ void spectro_mouseleave(t_spectro *x, t_object *patcherview, t_pt pt, long modif
 
 void spectro_mousemove(t_spectro *x, t_object *patcherview, t_pt pt, long modifiers)
 {
-    //variable for vertical linem
     x->u_mouseX = pt.x;
-    
-    //free char array
-    free(x->u_binAmp);
-    
-    typedef struct bin{
-        unsigned int number;
-        int freq;
-    } t_bin;
-    
-    t_bin bins;
-    
-    float range = (pt.x / x->u_gridwidth);
-    
-    //x->f_fftsize / 2 because of nyquist mirroring
-    x->u_fftResolution = (sys_getsr() / x->f_fftsize);
-    
-    if(x->u_logX){
-        range = lin_to_log(range, 0, 1.0, 0, 1.0);
-    }
-    
-    bins.number = range * (x->f_fftsize / 2);
-    bins.freq = x->u_fftResolution * bins.number;
-    
-    x->binAmplitude = fftAmp(bins.number, x);
-
-    if(x->u_logY){
-        if(x->binAmplitude == 0){
-            asprintf(&x->u_binAmp, "%iHz: -infdB", bins.freq);
-        } else {
-            x->binAmplitude = todB(x->binAmplitude, x);
-            asprintf(&x->u_binAmp, "%iHz: %fdB", bins.freq, x->binAmplitude);
-        }
-    } else {
-        x->binAmplitude = toAmp(x->binAmplitude, x);
-        asprintf(&x->u_binAmp, "%iHz: %f", bins.freq, x->binAmplitude);
-    }
-    
-    jbox_redraw((t_jbox *)x);
-    
 }
 
 void spectro_setphase(t_spectro *x, long phase)
