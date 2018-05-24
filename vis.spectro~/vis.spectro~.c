@@ -239,7 +239,7 @@ void spectro_paint(t_spectro *x, t_object *patcherview)
     //*l cursor line
     t_jgraphics *l = (t_jgraphics *) patcherview_get_jgraphics(patcherview);
     //*b bin grid
-    t_jgraphics *b = (t_jgraphics *) patcherview_get_jgraphics(patcherview);
+    //t_jgraphics *b = (t_jgraphics *) patcherview_get_jgraphics(patcherview);
     
     
     
@@ -331,11 +331,19 @@ void spectro_paint(t_spectro *x, t_object *patcherview)
                 jgraphics_line_to(h, (float) range + (x->u_bordersize / 2), x->u_gridheight - sample[i]);
             }
         }
+        
+       //uncomment for filling
+       //jgraphics_line_to(h, (float) (x->u_bordersize / 2),  x->u_gridheight + 10);
+
     }
     
     //paint samples
     jgraphics_set_line_width(h, x->u_linewidth);
     jgraphics_stroke(h);
+    
+    //uncomment for filling
+    //jgraphics_fill(h);
+
     
     //paint bin amp text
     if(x->u_ampOn && x->u_mouseover == true){
@@ -414,7 +422,7 @@ void spectro_paint(t_spectro *x, t_object *patcherview)
         //jgraphics_line_to(b, /*POSITION*/, x->u_gridheight - (x->u_bordersize / 2));
             
         //jgraphics_stroke(b);
-
+    
 }
 
 
